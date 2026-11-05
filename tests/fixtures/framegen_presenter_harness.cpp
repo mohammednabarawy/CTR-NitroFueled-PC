@@ -168,8 +168,8 @@ int main(int argc, char** argv) {
         assert(p.generated_present_count == 1 && DebugState.flips == 1);
         if (test == "native") assert(count("producer-submitted") == 0);
         else assert(before("producer-submitted", "record"));
-        if (test == "mailbox") assert(before("generated", "generated-complete") &&
-                                       before("generated-complete", "real"));
+        assert(before("generated", "generated-complete") &&
+               before("generated-complete", "real"));
     } else if (test == "minimized") {
         assert(count("record") == 0 && count("real") == 0);
         assert(before("producer-submitted", "producer-complete") && p.framegen_reset);
