@@ -1,0 +1,41 @@
+{
+  "date": "2026-11-05",
+  "audited_commit": "383e252d0042f20664b607244ea53b4927df1c1b",
+  "build_directory": "out/pr149-independent-audit-clean",
+  "directory_existed_before_configure": false,
+  "build_exit_code": 0,
+  "compiler_warning_diagnostics": 258,
+  "compiler_warning_note": "258 diagnostics including repetitions; all originate in gpu/third_party",
+  "build_log_sha256": "ce2f4585f727eefeb4f692c0e2154b5e91d051602cd312aed402b6e96c744d3a",
+  "configure_log_sha256": "64d8cbafd10c3cb3e4dd7c2c16e24a365d49db5d988e67519d564a56b1390868",
+  "targeted_tests": {
+    "run": 67,
+    "failures": 0,
+    "errors": 0,
+    "skips": 0,
+    "log_sha256": "62dbd57d39e1ab44ee606b0acbe9b4f67dbc6ec39d987071e522ff5b59380e57"
+  },
+  "artifacts": [
+    {
+      "file": "out/pr149-independent-audit-clean/bb-gpu-capabilities.exe",
+      "bytes": 196608,
+      "sha256": "cd853705eb5606c5f12066b77c705643739e043d29d6a2a29fdc99f3ad1d2b8a"
+    },
+    {
+      "file": "out/pr149-independent-audit-clean/CTR-NitroFueled-PC.exe",
+      "bytes": 3816448,
+      "sha256": "5c2936284d58eab412ba9f6ca564923f8ad9a54e6580b5f4191d50624871c7ba"
+    },
+    {
+      "file": "out/pr149-independent-audit-clean/sacredfire.exe",
+      "bytes": 171015680,
+      "sha256": "f0453d3f2006b7e2fb80ba978b62be848d6bcf591dc7aca4f235780122ca74c3"
+    }
+  ],
+  "missing_acceptance_evidence": [
+    "GPU/presentation ordering capture from latest revision",
+    "Game-only motion recording of latest revision",
+    "Remaining documented gameplay/HDR/artifact/timing checks"
+  ],
+  "upstream_pr_modified": false
+}
