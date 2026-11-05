@@ -129,11 +129,14 @@ bool Swapchain::AcquireNextImage() {
 
     switch (result) {
     case vk::Result::eSuccess:
-        if (fence) {
-            auto wait_res = device.waitForFences(fence, VK_TRUE, std::numeric_limits<u64>::max());
-            if (wait_res == vk::Result::eSuccess) {
-                (void)device.resetFences(fence);
-            }
+        {
+            const auto wait_result =
+                device.waitForFences(fence, VK_TRUE, std::numeric_limits<u64>::max());
+            ASSERT_MSG(wait_result == vk::Result::eSuccess, "Failed to wait for acquired image: {}",
+                       vk::to_string(wait_result));
+            const auto reset_result = device.resetFences(fence);
+            ASSERT_MSG(reset_result == vk::Result::eSuccess, "Failed to reset acquire fence: {}",
+                       vk::to_string(reset_result));
         }
         break;
     case vk::Result::eSuboptimalKHR:
