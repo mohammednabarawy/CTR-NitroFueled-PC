@@ -185,6 +185,7 @@ std::string DetectWindowsLocale() {
     if (!GetUserDefaultLocaleName(name, LOCALE_NAME_MAX_LENGTH)) return "en";
     std::wstring locale(name);
     std::transform(locale.begin(), locale.end(), locale.begin(), [](wchar_t c) { return wchar_t(towlower(c)); });
+    if (locale.rfind(L"ar", 0) == 0) return "ar";
     if (locale.rfind(L"pt", 0) == 0) return "pt_BR";
     if (locale.rfind(L"es", 0) == 0) return "es";
     if (locale.rfind(L"fr", 0) == 0) return "fr";
@@ -202,6 +203,351 @@ void ApplyLauncherLanguage() {
     g_spanish = g_active_locale == "es";
 }
 
+// ---------------------------------------------------------------------------------------------
+// Arabic contextual shaping (Presentation Forms-B U+FE70..U+FEFC) & visual RTL ordering for ImGui
+// ---------------------------------------------------------------------------------------------
+namespace ArabicShaper {
+
+struct LetterForms {
+    uint16_t iso;
+    uint16_t fin;
+    uint16_t ini;
+    uint16_t med;
+    bool joins_next; // dual-joining (true) vs right-joining only (false)
+};
+
+inline bool GetLetterForms(uint32_t cp, LetterForms& out) {
+    switch (cp) {
+        case 0x0621: out = {0xFE80, 0xFE80, 0xFE80, 0xFE80, false}; return true; // Hamza
+        case 0x0622: out = {0xFE81, 0xFE82, 0xFE81, 0xFE82, false}; return true; // Alef Madda
+        case 0x0623: out = {0xFE83, 0xFE84, 0xFE83, 0xFE84, false}; return true; // Alef Hamza Above
+        case 0x0624: out = {0xFE85, 0xFE86, 0xFE85, 0xFE86, false}; return true; // Waw Hamza
+        case 0x0625: out = {0xFE87, 0xFE88, 0xFE87, 0xFE88, false}; return true; // Alef Hamza Below
+        case 0x0626: out = {0xFE89, 0xFE8A, 0xFE8B, 0xFE8C, true};  return true; // Yeh Hamza
+        case 0x0627: out = {0xFE8D, 0xFE8E, 0xFE8D, 0xFE8E, false}; return true; // Alef
+        case 0x0628: out = {0xFE8F, 0xFE90, 0xFE91, 0xFE92, true};  return true; // Beh
+        case 0x0629: out = {0xFE93, 0xFE94, 0xFE93, 0xFE94, false}; return true; // Teh Marbuta
+        case 0x062A: out = {0xFE95, 0xFE96, 0xFE97, 0xFE98, true};  return true; // Teh
+        case 0x062B: out = {0xFE99, 0xFE9A, 0xFE9B, 0xFE9C, true};  return true; // Theh
+        case 0x062C: out = {0xFE9D, 0xFE9E, 0xFE9F, 0xFEA0, true};  return true; // Jeem
+        case 0x062D: out = {0xFEA1, 0xFEA2, 0xFEA3, 0xFEA4, true};  return true; // Hah
+        case 0x062E: out = {0xFEA5, 0xFEA6, 0xFEA7, 0xFEA8, true};  return true; // Khah
+        case 0x062F: out = {0xFEA9, 0xFEAA, 0xFEA9, 0xFEAA, false}; return true; // Dal
+        case 0x0630: out = {0xFEAB, 0xFEAC, 0xFEAB, 0xFEAC, false}; return true; // Thal
+        case 0x0631: out = {0xFEAD, 0xFEAE, 0xFEAD, 0xFEAE, false}; return true; // Reh
+        case 0x0632: out = {0xFEAF, 0xFEB0, 0xFEAF, 0xFEB0, false}; return true; // Zain
+        case 0x0633: out = {0xFEB1, 0xFEB2, 0xFEB3, 0xFEB4, true};  return true; // Seen
+        case 0x0634: out = {0xFEB5, 0xFEB6, 0xFEB7, 0xFEB8, true};  return true; // Sheen
+        case 0x0635: out = {0xFEB9, 0xFEBA, 0xFEBB, 0xFEBC, true};  return true; // Sad
+        case 0x0636: out = {0xFEBD, 0xFEBE, 0xFEBF, 0xFEC0, true};  return true; // Dad
+        case 0x0637: out = {0xFEC1, 0xFEC2, 0xFEC3, 0xFEC4, true};  return true; // Tah
+        case 0x0638: out = {0xFEC5, 0xFEC6, 0xFEC7, 0xFEC8, true};  return true; // Zah
+        case 0x0639: out = {0xFEC9, 0xFECA, 0xFECB, 0xFECC, true};  return true; // Ain
+        case 0x063A: out = {0xFECD, 0xFECE, 0xFECF, 0xFED0, true};  return true; // Ghain
+        case 0x0640: out = {0x0640, 0x0640, 0x0640, 0x0640, true};  return true; // Tatweel
+        case 0x0641: out = {0xFED1, 0xFED2, 0xFED3, 0xFED4, true};  return true; // Feh
+        case 0x0642: out = {0xFED5, 0xFED6, 0xFED7, 0xFED8, true};  return true; // Qaf
+        case 0x0643: out = {0xFED9, 0xFEDA, 0xFEDB, 0xFEDC, true};  return true; // Kaf
+        case 0x0644: out = {0xFEDD, 0xFEDE, 0xFEDF, 0xFEE0, true};  return true; // Lam
+        case 0x0645: out = {0xFEE1, 0xFEE2, 0xFEE3, 0xFEE4, true};  return true; // Meem
+        case 0x0646: out = {0xFEE5, 0xFEE6, 0xFEE7, 0xFEE8, true};  return true; // Noon
+        case 0x0647: out = {0xFEE9, 0xFEEA, 0xFEEB, 0xFEEC, true};  return true; // Heh
+        case 0x0648: out = {0xFEED, 0xFEEE, 0xFEED, 0xFEEE, false}; return true; // Waw
+        case 0x0649: out = {0xFEEF, 0xFEF0, 0xFEEF, 0xFEF0, false}; return true; // Alef Maksura
+        case 0x064A: out = {0xFEF1, 0xFEF2, 0xFEF3, 0xFEF4, true};  return true; // Yeh
+        default: return false;
+    }
+}
+
+inline bool IsDiacritic(uint32_t cp) {
+    return (cp >= 0x064B && cp <= 0x065F) || cp == 0x0670;
+}
+
+inline bool IsArabicCodepoint(uint32_t cp) {
+    return (cp >= 0x0600 && cp <= 0x06FF) ||
+           (cp >= 0x0750 && cp <= 0x077F) ||
+           (cp >= 0x08A0 && cp <= 0x08FF) ||
+           (cp >= 0xFB50 && cp <= 0xFDFF) ||
+           (cp >= 0xFE70 && cp <= 0xFEFF);
+}
+
+inline bool JoinsWithPrev(uint32_t cp) {
+    LetterForms f{};
+    return cp != 0x0621 && GetLetterForms(cp, f);
+}
+
+inline bool JoinsWithNext(uint32_t cp) {
+    LetterForms f{};
+    return GetLetterForms(cp, f) && f.joins_next;
+}
+
+inline uint32_t LamAlefLigature(uint32_t alef, bool joined_prev) {
+    switch (alef) {
+        case 0x0622: return joined_prev ? 0xFEF6 : 0xFEF5;
+        case 0x0623: return joined_prev ? 0xFEF8 : 0xFEF7;
+        case 0x0625: return joined_prev ? 0xFEFA : 0xFEF9;
+        case 0x0627: return joined_prev ? 0xFEFC : 0xFEFB;
+        default: return 0;
+    }
+}
+
+inline std::vector<uint32_t> DecodeUtf8(const std::string& s) {
+    std::vector<uint32_t> out;
+    out.reserve(s.size());
+    size_t i = 0;
+    while (i < s.size()) {
+        const uint8_t c = static_cast<uint8_t>(s[i]);
+        if (c < 0x80) {
+            out.push_back(c);
+            i += 1;
+        } else if ((c & 0xE0) == 0xC0 && i + 1 < s.size()) {
+            out.push_back(((c & 0x1F) << 6) | (static_cast<uint8_t>(s[i + 1]) & 0x3F));
+            i += 2;
+        } else if ((c & 0xF0) == 0xE0 && i + 2 < s.size()) {
+            out.push_back(((c & 0x0F) << 12) |
+                          ((static_cast<uint8_t>(s[i + 1]) & 0x3F) << 6) |
+                          (static_cast<uint8_t>(s[i + 2]) & 0x3F));
+            i += 3;
+        } else if ((c & 0xF8) == 0xF0 && i + 3 < s.size()) {
+            out.push_back(((c & 0x07) << 18) |
+                          ((static_cast<uint8_t>(s[i + 1]) & 0x3F) << 12) |
+                          ((static_cast<uint8_t>(s[i + 2]) & 0x3F) << 6) |
+                          (static_cast<uint8_t>(s[i + 3]) & 0x3F));
+            i += 4;
+        } else {
+            out.push_back(c);
+            i += 1;
+        }
+    }
+    return out;
+}
+
+inline void AppendUtf8(std::string& out, uint32_t cp) {
+    if (cp < 0x80) {
+        out.push_back(static_cast<char>(cp));
+    } else if (cp < 0x800) {
+        out.push_back(static_cast<char>(0xC0 | (cp >> 6)));
+        out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+    } else if (cp < 0x10000) {
+        out.push_back(static_cast<char>(0xE0 | (cp >> 12)));
+        out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+        out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+    } else {
+        out.push_back(static_cast<char>(0xF0 | (cp >> 18)));
+        out.push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+        out.push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+        out.push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+    }
+}
+
+inline uint32_t MirrorBracket(uint32_t cp) {
+    switch (cp) {
+        case '(': return ')';
+        case ')': return '(';
+        case '[': return ']';
+        case ']': return '[';
+        case '{': return '}';
+        case '}': return '{';
+        case 0x00AB: return 0x00BB;
+        case 0x00BB: return 0x00AB;
+        default: return cp;
+    }
+}
+
+inline bool IsStrongLtr(uint32_t cp) {
+    return (cp >= 'A' && cp <= 'Z') ||
+           (cp >= 'a' && cp <= 'z') ||
+           (cp >= '0' && cp <= '9') ||
+           cp == '%' || cp == '\\' || cp == '/';
+}
+
+inline std::string ShapeLine(const std::string& line, bool reorder_full_line) {
+    const std::vector<uint32_t> cps = DecodeUtf8(line);
+    bool has_arabic = false;
+    for (uint32_t cp : cps) {
+        if (IsArabicCodepoint(cp)) {
+            has_arabic = true;
+            break;
+        }
+    }
+    if (!has_arabic) return line;
+
+    // 1. Contextual Arabic glyph shaping + Lam-Alef ligatures
+    std::vector<uint32_t> shaped;
+    shaped.reserve(cps.size());
+    for (size_t i = 0; i < cps.size(); ++i) {
+        const uint32_t cp = cps[i];
+        if (IsDiacritic(cp)) continue; // Strip combining tashkeel so glyph advances stay clean in ImGui
+
+        LetterForms forms{};
+        if (!GetLetterForms(cp, forms)) {
+            shaped.push_back(cp);
+            continue;
+        }
+
+        bool join_prev = false;
+        for (int p = static_cast<int>(i) - 1; p >= 0; --p) {
+            if (IsDiacritic(cps[p])) continue;
+            join_prev = JoinsWithNext(cps[p]);
+            break;
+        }
+
+        // Check Lam + Alef ligature
+        if (cp == 0x0644) {
+            size_t next_idx = i + 1;
+            while (next_idx < cps.size() && IsDiacritic(cps[next_idx])) ++next_idx;
+            if (next_idx < cps.size()) {
+                const uint32_t lig = LamAlefLigature(cps[next_idx], join_prev);
+                if (lig != 0) {
+                    shaped.push_back(lig);
+                    i = next_idx;
+                    continue;
+                }
+            }
+        }
+
+        bool join_next = false;
+        if (forms.joins_next) {
+            for (size_t n = i + 1; n < cps.size(); ++n) {
+                if (IsDiacritic(cps[n])) continue;
+                join_next = JoinsWithPrev(cps[n]);
+                break;
+            }
+        }
+
+        uint32_t glyph = forms.iso;
+        if (join_prev && join_next) glyph = forms.med;
+        else if (join_prev) glyph = forms.fin;
+        else if (join_next) glyph = forms.ini;
+        shaped.push_back(glyph);
+    }
+
+    // 2. Partition into directional runs (RTL Arabic runs vs LTR Latin/number/format runs)
+    struct Run {
+        bool is_rtl;
+        std::vector<uint32_t> chars;
+    };
+    std::vector<Run> runs;
+    size_t idx = 0;
+    while (idx < shaped.size()) {
+        const uint32_t cp = shaped[idx];
+        if (IsArabicCodepoint(cp)) {
+            Run r{true, {}};
+            while (idx < shaped.size()) {
+                const uint32_t c = shaped[idx];
+                if (IsArabicCodepoint(c)) {
+                    r.chars.push_back(c);
+                    ++idx;
+                } else if (!IsStrongLtr(c)) {
+                    // Neutral punctuation/space: attach to RTL run if followed by another Arabic char
+                    size_t look = idx + 1;
+                    while (look < shaped.size() && !IsArabicCodepoint(shaped[look]) && !IsStrongLtr(shaped[look])) {
+                        ++look;
+                    }
+                    if (look < shaped.size() && IsArabicCodepoint(shaped[look])) {
+                        r.chars.push_back(MirrorBracket(c));
+                        ++idx;
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+            std::reverse(r.chars.begin(), r.chars.end());
+            runs.push_back(std::move(r));
+        } else if (IsStrongLtr(cp)) {
+            Run r{false, {}};
+            while (idx < shaped.size()) {
+                const uint32_t c = shaped[idx];
+                if (IsStrongLtr(c)) {
+                    r.chars.push_back(c);
+                    ++idx;
+                } else if (!IsArabicCodepoint(c)) {
+                    // Keep internal spaces/punctuation (e.g. "FSR 3.1", "%s:%d", "v01.21") inside LTR run
+                    // if followed by another strong LTR char
+                    size_t look = idx + 1;
+                    while (look < shaped.size() && !IsArabicCodepoint(shaped[look]) && !IsStrongLtr(shaped[look])) {
+                        ++look;
+                    }
+                    if (look < shaped.size() && IsStrongLtr(shaped[look])) {
+                        r.chars.push_back(c);
+                        ++idx;
+                    } else {
+                        break;
+                    }
+                } else {
+                    break;
+                }
+            }
+            runs.push_back(std::move(r));
+        } else {
+            // Standalone neutral sequence at boundary or between RTL and LTR
+            Run r{true, {}};
+            while (idx < shaped.size() && !IsArabicCodepoint(shaped[idx]) && !IsStrongLtr(shaped[idx])) {
+                r.chars.push_back(MirrorBracket(shaped[idx]));
+                ++idx;
+            }
+            std::reverse(r.chars.begin(), r.chars.end());
+            runs.push_back(std::move(r));
+        }
+    }
+
+    if (reorder_full_line) {
+        std::reverse(runs.begin(), runs.end());
+    }
+
+    std::string out;
+    out.reserve(line.size() + 16);
+    for (const auto& r : runs) {
+        for (uint32_t c : r.chars) {
+            AppendUtf8(out, c);
+        }
+    }
+    return out;
+}
+
+inline std::string ShapeArabicForImGui(const std::string& input) {
+    if (input.empty()) return input;
+    // Preserve ImGui ID suffix (##...) untouched at the end
+    const size_t hash_pos = input.find("##");
+    const std::string visible = (hash_pos == std::string::npos) ? input : input.substr(0, hash_pos);
+    const std::string suffix  = (hash_pos == std::string::npos) ? ""    : input.substr(hash_pos);
+
+    // Count printf '%' format specifiers (excluding "%%")
+    int fmt_specs = 0;
+    for (size_t i = 0; i < visible.size(); ++i) {
+        if (visible[i] == '%') {
+            if (i + 1 < visible.size() && visible[i + 1] == '%') {
+                ++i;
+            } else if (i + 1 < visible.size() && (visible[i + 1] == 's' || visible[i + 1] == 'd' ||
+                       visible[i + 1] == 'u' || visible[i + 1] == 'f' || visible[i + 1] == '.' ||
+                       visible[i + 1] == 'z' || (visible[i + 1] >= '0' && visible[i + 1] <= '9'))) {
+                ++fmt_specs;
+            }
+        }
+    }
+    const bool reorder_full_line = (fmt_specs < 2);
+
+    std::string result;
+    result.reserve(input.size() + 16);
+    size_t start = 0;
+    while (start <= visible.size()) {
+        const size_t nl = visible.find('\n', start);
+        const std::string line = (nl == std::string::npos)
+            ? visible.substr(start)
+            : visible.substr(start, nl - start);
+        result += ShapeLine(line, reorder_full_line);
+        if (nl == std::string::npos) break;
+        result.push_back('\n');
+        start = nl + 1;
+    }
+    result += suffix;
+    return result;
+}
+
+} // namespace ArabicShaper
+
 const char* T(const char* es, const char* en) {
     if (g_active_locale == "es") return es;
     if (g_active_locale == "en") return en;
@@ -209,7 +555,17 @@ const char* T(const char* es, const char* en) {
     const auto language = all.find(g_active_locale);
     if (language != all.end()) {
         const auto value = language->second.find(en);
-        if (value != language->second.end()) return value->second.c_str();
+        if (value != language->second.end()) {
+            if (g_active_locale == "ar") {
+                static std::map<std::string, std::string> s_shaped_ar;
+                auto it = s_shaped_ar.find(en);
+                if (it == s_shaped_ar.end()) {
+                    it = s_shaped_ar.emplace(en, ArabicShaper::ShapeArabicForImGui(value->second)).first;
+                }
+                return it->second.c_str();
+            }
+            return value->second.c_str();
+        }
     }
     return en;
 }
@@ -6703,9 +7059,10 @@ void ToolsTab() {
     ImGui::EndDisabled();
 
     ImGui::SeparatorText(T("Idioma del launcher", "Launcher language"));
+    static const std::string kArabicLanguageName = ArabicShaper::ShapeArabicForImGui("العربية");
     const char* language_names[] = {"Auto (Windows)", "English", "Español", "Português (Brasil)", "Français",
-                                    "Deutsch", "Italiano", "日本語", "简体中文", "Русский", "Bahasa Indonesia"};
-    const char* language_codes[] = {"auto", "en", "es", "pt_BR", "fr", "de", "it", "ja", "zh_CN", "ru", "id"};
+                                    "Deutsch", "Italiano", "日本語", "简体中文", "Русский", "Bahasa Indonesia", kArabicLanguageName.c_str()};
+    const char* language_codes[] = {"auto", "en", "es", "pt_BR", "fr", "de", "it", "ja", "zh_CN", "ru", "id", "ar"};
     constexpr int language_count = int(sizeof language_codes / sizeof *language_codes);
     int selected_language = 0;
     for (int i = 0; i < language_count; ++i) if (g_language == language_codes[i]) selected_language = i;
@@ -7488,10 +7845,10 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
             if (!fs::is_regular_file(file, ec)) continue;
             ImFontConfig merge;
             merge.MergeMode = true;
-            io.Fonts->AddFontFromFileTTF(PathText(file).c_str(), 0.0f, &merge);
+            io.Fonts->AddFontFromFileTTF(PathText(file).c_str(), style.FontSizeBase, &merge);
         }
     };
-    if (fs::is_regular_file(segoe, ec)) io.Fonts->AddFontFromFileTTF(PathText(segoe).c_str());
+    if (fs::is_regular_file(segoe, ec)) io.Fonts->AddFontFromFileTTF(PathText(segoe).c_str(), style.FontSizeBase);
     else io.Fonts->AddFontDefault();
     merge_fallbacks(false);
     const fs::path ctr_font = g_app.root / L"art" / L"ctr-menu.ttf";
