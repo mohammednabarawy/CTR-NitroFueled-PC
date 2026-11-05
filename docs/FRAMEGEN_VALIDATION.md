@@ -1,7 +1,8 @@
 # Experimental frame generation: local evidence — 2026-11-05
 
-Status: **not certified stable**. No upstream PR update is authorized. Test binaries are built
-from the independent frame-generation worktree; saves and caches are isolated per case.
+Status: **not certified stable**. No upstream PR update is authorized. Early test binaries
+come from the independent frame-generation worktree; the `audit-final-*` cases use the
+consolidated remediation checkout's clean build. Saves and caches are isolated per case.
 
 ## What is implemented
 
@@ -17,7 +18,10 @@ unconnected. Unsupported HDR formats bypass generation.
   `out/pr149-split-build/framegen` and reproducible clean build from an empty directory in
   `out/pr149-clean-final` producing `sacredfire.exe` (`f9ecfc3c0073870d99be967475330d6e552e7daf830e79297ac3448c33ccfb59`),
   `CTR-NitroFueled-PC.exe` (`0f6f841f2f6ad3dbf44ed8ab2a8646ac6ff37cc41990187b9f48c48e91c51f79`), and
-  `bb-gpu-capabilities.exe` (`e86711919e2ac7246fc622656014f4428c1ac88e7d313854b1ca8b5b9614b5fb`) with zero warnings.
+  `bb-gpu-capabilities.exe` (`e86711919e2ac7246fc622656014f4428c1ac88e7d313854b1ca8b5b9614b5fb`).
+  An independent empty-directory rebuild in `out/pr149-independent-audit-clean` also passed,
+  with 258 compiler warning diagnostics and zero build errors. The earlier "zero warnings"
+  claim is withdrawn; see `out/pr149-independent-audit-build.log`.
   Both frame-generation tests passed, including 13 driverless presenter scenarios. These tests do not execute FSR shaders.
 - EUR 1.21 regular renderer reached the title and menus with generation off and on. FIFO,
   Mailbox and Immediate have been exercised. An Immediate run reached a completed three-lap
@@ -109,7 +113,8 @@ The new USA snapshot was read directly from the game's BGRA buffer; it contains 
 
 A subsequent validation audit of the clean scratch build (`out/pr149-clean-final`) under full
 Khronos Validation + SyncVal with graceful window teardown (`WM_CLOSE` -> `SDL_EVENT_QUIT`)
-confirmed 0 hazards across all three cases:
+logged zero synchronization hazards during the three startup/title intervals below. This
+does not mean zero Vulkan validation errors: geometry interface errors remain.
 
 | Clean build audit case | Generation | Mode | WRITE-AFTER-PRESENT | 01779 | All sync hazards | Generated pairs | Exit |
 |---|---|---|---:|---:|---:|---:|---:|
