@@ -113,16 +113,33 @@ def damaged_archives(game):
         try:
             with open(path, 'rb') as f:
                 header = f.read(0x38)
-                if len(header) < 0x38 or header[:4] != b'IGA\x1a':
+                if header[:4] != b'IGA\x1a':
+                    continue
+                if len(header) < 0x38:
+                    damaged.append(path.name)
                     continue
                 offset, size = struct.unpack_from('<I', header, 0x28)[0], struct.unpack_from('<I', header, 0x30)[0]
                 if not size:
                     continue
+                file_size = os.fstat(f.fileno()).st_size
+                if offset < len(header) or offset > file_size or size > file_size - offset:
+                    damaged.append(path.name)
+                    continue
                 f.seek(offset)
-                names = f.read(size)
+                # Bound memory use for a large table; one nonzero byte rules out the
+                # zero-table corruption this check detects. Bounds were checked above.
+                remaining, nonzero = size, False
+                while remaining:
+                    chunk = f.read(min(remaining, 1024 * 1024))
+                    if not chunk:
+                        break
+                    remaining -= len(chunk)
+                    if any(chunk):
+                        nonzero = True
+                        break
         except OSError:
             continue
-        if len(names) == size and not any(names):
+        if not nonzero:
             damaged.append(path.name)
     return damaged
 

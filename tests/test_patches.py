@@ -112,6 +112,80 @@ class SignatureTests(unittest.TestCase):
         self.assertEqual(self.writes(twice, EBOOT_BASE + 0x1012), [])
 
 
+class ExpectedTests(unittest.TestCase):
+    """Expected="..." (+ AlternateAddress): the reference bytes gate an executable write."""
+    LINE = ('<?xml version="1.0"?><Patch><TitleID><ID>CUSA13795</ID></TitleID>'
+            '<Metadata Title="CTR" Name="E" Author="x" AppVer="01.21" AppElf="eboot.bin" isEnabled="true">'
+            '<PatchList><Line Type="bytes" Address="{address}" Value="9090" {attrs}/></PatchList>'
+            '</Metadata></Patch>')
+    CODE = b'\0' * 16 + b'\xaa\xbb' + b'\0' * 14  # aa bb at 0x1010
+
+    def compile(self, attrs, elf=None, address=EBOOT_BASE + 0x1010, **kwargs):
+        elf = elf or tiny_elf(self.CODE)
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / 'p.xml').write_text(self.LINE.format(address=hex(address), attrs=attrs))
+            found = external_patches(Path(tmp))
+            return compile_external(external_selection(found, None), eboot_segments(elf), elf, **kwargs)
+
+    def test_matching_reference_applies(self):
+        self.assertEqual(self.compile('Expected="aa bb"'), [(0x1010, b'\x90\x90')])
+        self.assertEqual(self.compile('Expected="AABB"'), [(0x1010, b'\x90\x90')])
+
+    def test_alternate_address_is_used_when_the_primary_does_not_match(self):
+        alt = hex(EBOOT_BASE + 0x1010)
+        self.assertEqual(self.compile(f'Expected="aabb" AlternateAddress="{alt}"', address=EBOOT_BASE + 0x1000),
+                         [(0x1010, b'\x90\x90')])
+
+    def test_empty_or_blank_reference_is_rejected(self):
+        for attrs in ('Expected=" "', 'Expected=""', 'Expected="  &#9; "'):
+            self.assertEqual(self.compile(attrs), [], attrs)
+            with self.assertRaises(ValueError, msg=attrs):
+                self.compile(attrs, strict=True)
+            with self.assertRaises(ValueError, msg=attrs):
+                self.compile(attrs, strict=True, require_verification=True)
+
+    def test_invalid_or_short_reference_is_rejected(self):
+        for attrs in ('Expected="zz"', 'Expected="aab"', 'Expected="aa"'):  # not hex, odd digits, 1 of 2 bytes
+            self.assertEqual(self.compile(attrs), [], attrs)
+
+    def test_mismatch_is_rejected(self):
+        self.assertEqual(self.compile('Expected="aa cc"'), [])
+        self.assertEqual(self.compile('Expected="aabb"', address=EBOOT_BASE + 0x1000), [])
+
+    def test_ambiguous_alternate_addresses_are_rejected(self):
+        code = b'\0' * 16 + b'\xaa\xbb' + b'\0' * 14 + b'\xaa\xbb' + b'\0' * 14  # aa bb at 0x1010 and 0x1020
+        alt = hex(EBOOT_BASE + 0x1020)
+        self.assertEqual(self.compile(f'Expected="aabb" AlternateAddress="{alt}"', elf=tiny_elf(code)), [])
+        with self.assertRaises(ValueError):
+            self.compile(f'Expected="aabb" AlternateAddress="{alt}"', elf=tiny_elf(code), strict=True)
+
+    def test_reference_past_the_segment_end_is_rejected(self):
+        self.assertEqual(self.compile('Expected="aabb"', elf=tiny_elf(b'\0' * 16 + b'\xaa')), [])
+
+    def test_signature_does_not_bypass_expected_validation(self):
+        for expected in ('', ' ', 'aa', 'aacc'):
+            attrs = f'Signature="aa bb" Expected="{expected}"'
+            self.assertEqual(self.compile(attrs), [], attrs)
+            with self.assertRaises(ValueError):
+                self.compile(attrs, strict=True, require_verification=True)
+        self.assertEqual(self.compile('Signature="aa bb" Expected="aabb"', require_verification=True),
+                         [(0x1010, b'\x90\x90')])
+
+    def test_signature_resolved_site_must_pass_expected(self):
+        # The signature resolves to 0x1010; an Expected match at another address must not
+        # redirect that signed write. Both declarations must hold at the same patch site.
+        code = b'\0' * 16 + b'\xaa\xbb' + b'\0' * 14 + b'\xcc\xdd'
+        attrs = f'Signature="aa bb" Expected="ccdd" AlternateAddress="{hex(EBOOT_BASE + 0x1020)}"'
+        self.assertEqual(self.compile(attrs, elf=tiny_elf(code)), [])
+        with self.assertRaises(ValueError):
+            self.compile(attrs, elf=tiny_elf(code), strict=True)
+
+    def test_duplicate_candidates_are_counted_once(self):
+        primary = hex(EBOOT_BASE + 0x1010)
+        self.assertEqual(self.compile(f'Expected="aabb" AlternateAddress="{primary}, {primary}"'),
+                         [(0x1010, b'\x90\x90')])
+
+
 class RenderResTests(unittest.TestCase):
     """render_res: the game's PS4 Pro render scale and GPU heap (docs/sacredfire/13-resolution.md)."""
 

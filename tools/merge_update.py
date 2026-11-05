@@ -76,15 +76,27 @@ def merge_game(base, update, out):
         trees[folder] = layout(folder)
         if trees[folder] is None:
             raise ValueError(f'No eboot.bin and sce_sys/param.sfo (nor Image0 and Sc0) in {folder}')
-    if out.resolve() in (base.resolve(), update.resolve()):
-        raise ValueError('The merged folder must be a new folder')
-    out.mkdir(parents=True, exist_ok=True)
+    resolved = out.resolve()
+    for folder in (base.resolve(), update.resolve()):
+        if resolved == folder or folder in resolved.parents or resolved in folder.parents:
+            raise ValueError('The merged folder must be separate from both source trees')
+    if out.exists():
+        raise ValueError('The merged folder already exists; choose a new folder')
+    out.parent.mkdir(parents=True, exist_ok=True)
     counts = {'linked': 0, 'copied': 0}
     replaced = []
-    for root, prefix in trees[base]:
-        add_tree(root, out, counts, prefix=prefix)
-    for root, prefix in trees[update]:
-        add_tree(root, out, counts, replaced, prefix)
+    # Build beside the final directory so publication is one same-filesystem rename.
+    # A failed copy/interrupt leaves no partial final directory and never edits either dump.
+    stage = Path(tempfile.mkdtemp(prefix=f'.{out.name}.', suffix='.staging', dir=out.parent))
+    try:
+        for root, prefix in trees[base]:
+            add_tree(root, stage, counts, prefix=prefix)
+        for root, prefix in trees[update]:
+            add_tree(root, stage, counts, replaced, prefix)
+        os.rename(stage, out)
+    finally:
+        if stage.exists():
+            shutil.rmtree(stage)
     return counts, replaced
 
 
@@ -96,7 +108,7 @@ def main():
     a = p.parse_args()
     try:
         counts, replaced = merge_game(a.base, a.update, a.out)
-    except ValueError as error:
+    except (ValueError, OSError) as error:
         sys.exit(str(error))
     print(f'Merged {a.update} over {a.base} into {a.out}: {counts["linked"]} files linked, '
           f'{counts["copied"]} copied, {len(replaced)} replaced by the update')

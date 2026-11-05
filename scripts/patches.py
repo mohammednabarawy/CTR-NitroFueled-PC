@@ -398,9 +398,24 @@ def locate(line, offset, elf):
     return hits[0]+shift
 
 
-def locate_expected(line, offset, elf):
-    """The image offset a line with Expected="..." writes to (checking Address and AlternateAddress)."""
-    expected=bytes.fromhex(line.get('Expected').replace(' ',''))
+def parse_expected(text, length):
+    """The bytes of an Expected="..." reference. It must be non-empty valid hex and cover every
+    byte the line overwrites (length): a shorter or empty reference proves nothing about the
+    bytes being replaced."""
+    digits=''.join((text or '').split())
+    if not digits: raise ValueError('empty Expected reference')
+    try: expected=bytes.fromhex(digits)
+    except ValueError: raise ValueError('invalid Expected reference') from None
+    if len(expected)<length:
+        raise ValueError(f'Expected covers {len(expected)} of the {length} bytes written')
+    return expected
+
+
+def locate_expected(line, offset, elf, length=0):
+    """The image offset a line with Expected="..." writes to (checking Address and AlternateAddress).
+    Exactly one candidate must hold the reference bytes, and the reference must cover the `length`
+    bytes written."""
+    expected=parse_expected(line.get('Expected'),length)
     loads=load_segments(elf)
     def matches(vaddr):
         for start,pos,size in loads:
@@ -495,7 +510,7 @@ def compile_external(selected, segments, elf=None, strict=False, require_verific
             for line in meta.iter('Line'):
                 offset=int(line.get('Address') or '',0)-EBOOT_BASE
                 data=encode(line)
-                if require_verification and not (line.get('Signature') or line.get('ExpectedSHA256') or line.get('Expected')):
+                if require_verification and not (line.get('Signature') or line.get('ExpectedSHA256') or line.get('Expected') is not None):
                     raise ValueError('unverified executable write; update this mod with code signatures: '+str(line.get('Address')))
                 if line.get('Signature'):
                     if elf is None: raise ValueError('signature without the executable')
@@ -504,9 +519,12 @@ def compile_external(selected, segments, elf=None, strict=False, require_verific
                         raise ValueError('fixed-address code signature moved; this mod needs a port: '+str(line.get('Address')))
                     if moved!=offset: print(f'Patches: {key}: {line.get("Address")} found at {moved+EBOOT_BASE:#010x}')
                     offset=moved
-                elif line.get('Expected'):
+                if line.get('Expected') is not None:
                     if elf is None: raise ValueError('expected bytes without the executable')
-                    moved=locate_expected(line,offset,elf)
+                    # A signature has already resolved the site. Expected is an additional
+                    # check there, never permission to redirect it to a different candidate.
+                    reference=dict(line.attrib,AlternateAddress='') if line.get('Signature') else line
+                    moved=locate_expected(reference,offset,elf,len(data))
                     if moved!=offset: print(f'Patches: {key}: {line.get("Address")} verified at {moved+EBOOT_BASE:#010x}')
                     offset=moved
                 if not any(start<=offset and offset+len(data)<=end for start,end in segments):
