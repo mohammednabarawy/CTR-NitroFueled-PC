@@ -24,6 +24,9 @@ unconnected. Unsupported HDR formats bypass generation.
   The overlay is not a physical-scanout measurement. Maximizing resized the active FSR
   context from 1466x825 to 1793x1009; visible output continued. Minimize and restore also
   recovered visible animated output with generation still active.
+- A later USA Immediate session reached live race rendering (observed past 1:13), logged
+  34,200 successful pairs across the whole session and exited normally. The total includes
+  menus and intro; it is not a race-duration or completed-lap measurement.
 - Native-renderer startup comparisons also reached visible title/intro output in both EUR
   and USA, off and on, using Mailbox. Logs explicitly confirm native-only drawing. Disabled
   runs show a 30 FPS overlay; enabled runs show approximately 60 FPS and successful pairs.
@@ -53,8 +56,17 @@ not measure physical scanout or prove that Mailbox displayed every queued image.
 A USA FIFO intro recording after resize/restore also contains visible game output. Fast
 motion shows interpolation artifacts; this recording does not establish acceptable quality.
 
-The first GDI recording was black and is rejected as evidence. The race recording includes
-desktop content outside the moved game window and is private, unsuitable for publication.
+The first GDI recording was black and is rejected as evidence. A race recording included
+desktop content outside the moved game window; it and its contact sheet were removed.
+The clean title and intro clips were cropped to game pixels only, reviewed in contact sheets
+and retained locally as `eur-fsr3-fifo/title-game-only.mp4` and
+`usa-fsr3-fifo/intro-game-only.mp4` beneath `out/runtime-evidence`. Their wider originals and
+the older screenshots with window borders were removed. GPU texture exports contain game
+output directly. Future evidence must use game-buffer capture and exclude all desktop/apps.
+No screenshots, recordings or raw GPU captures were pushed to the fork.
+The [capture audit](evidence/framegen-capture-audit.json) records retained filenames, hashes
+and crop rectangles without embedding any media. Earlier automatic chat previews cannot be
+changed; subsequent retained evidence must contain only game pixels.
 PresentMon could not start its ETW session because this Windows account lacks the required
 elevated session access. No system permissions were changed.
 
@@ -69,6 +81,7 @@ Other errors remain: `VUID-RuntimeSpirv-OpEntryPoint-08743` (geometry input inte
 `SYNC-HAZARD-WRITE-AFTER-PRESENT`. They also occur with generation disabled. Their causes
 remain unresolved; they are not certified harmless. RenderDoc's empty replay debug-message
 lists do not establish a globally clean validation run.
+The disabled sync-validation comparison is in `out/eur-off-mailbox-validation-console.log`.
 
 ## Still required
 
@@ -79,4 +92,4 @@ lists do not establish a globally clean validation run.
   timing when ETW access is available; review visible motion for ghosting/HUD artifacts.
 - Resolve or separately establish the baseline validation findings before claiming stability.
 
-Raw captures, extracted textures, game files, saves, caches and desktop recordings stay local.
+Raw GPU captures, extracted textures, game files, saves, caches and game-only recordings stay local.
