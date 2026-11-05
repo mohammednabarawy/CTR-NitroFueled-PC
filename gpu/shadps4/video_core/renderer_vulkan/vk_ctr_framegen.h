@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // SacredFire: AMD FSR 3.1.6 frame generation for CTR (docs/sacredfire/16-framegen.md).
 //
-// Runs at flip time on the presenter's finished frame (post-processing done, HUD included;
+// Runs on the swap thread on the presenter's finished frame (post-processing done, HUD included;
 // the port's menu and FPS counter are drawn later, on every present). Each real frame is fed
 // to FSR 3.1.6 frame interpolation (optical flow + interpolation, the validated
 // `ffx-vulkan::fsr3-vk-framegeneration-3.1.6` slice of FireBurn/FSR-Vulkan, MIT), which
 // returns the frame halfway between it and the previous one. The presenter shows that
 // generated frame first and the real one half a frame later.
 //
-// The game's motion (depth R32F + pixel motion RG16F from CtrFsr3's inputs pass, when FSR 3,
-// FSR 4 or DLSS ran this frame) is used when it is fresh and no larger than the frame;
-// otherwise flat far depth and zero motion stand in and the optical flow carries the motion
-// alone (like driver-level frame generation), so it works with every upscaler and in menus.
+// The presenter currently supplies color only: flat far depth and zero motion stand in and
+// optical flow carries the motion. Vectors/hudless are optional API inputs, not connected to
+// CtrFsr3. Connecting them requires per-frame snapshots so a later guest frame cannot overwrite
+// inputs before this thread reads them.
 //
-// Threading: everything here runs on the GPU thread that calls Presenter::PrepareFrame (the
-// recording threads are drained by Scheduler::CommandBuffer first); OutputImage() is read by
-// the swap thread for a frame whose generation was recorded and submitted before.
+// Threading: Record, OutputImage and Reset all run on the present thread and present_scheduler.
+// Its first submission waits on the producer's ready semaphore/tick. The real present signals
+// the frame reuse fence only after the generated image has also been consumed.
 
 #pragma once
 
@@ -75,7 +75,7 @@ public:
         bool reset = false;       ///< a discontinuity the caller knows of (load, pause)
     };
 
-    /// Records conversion, preparation and interpolation for this real frame into the draw
+    /// Records conversion, preparation and interpolation for this real frame into the owning
     /// scheduler's command buffer. True when OutputImage(slot) now holds the generated frame
     /// to present before this one (General layout, the frame's format and size). False on
     /// a history reset (the first frame, a size or mode change), with the setting off or for

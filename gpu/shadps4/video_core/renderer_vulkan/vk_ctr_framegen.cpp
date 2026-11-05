@@ -264,7 +264,10 @@ bool CtrFrameGen::Ensure(u32 w, u32 h) {
             }));
         }
     };
-    const auto rw = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled;
+    // The SDK copies imported color/history images as well as sampling them. Keep actual
+    // creation usage consistent with the usage declared when importing them into FFX.
+    const auto rw = vk::ImageUsageFlagBits::eStorage | vk::ImageUsageFlagBits::eSampled |
+                    vk::ImageUsageFlagBits::eTransferSrc | vk::ImageUsageFlagBits::eTransferDst;
     make(rgba_image, &rgba_view, vk::Format::eR8G8B8A8Unorm, rw);
     make(generated_image, &generated_view, vk::Format::eR8G8B8A8Unorm, rw);
     make(hudless_rgba_image, &hudless_rgba_view, vk::Format::eR8G8B8A8Unorm, rw);
