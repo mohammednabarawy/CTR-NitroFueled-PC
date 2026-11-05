@@ -83,6 +83,24 @@
       "sha256": "24c0b0739c9ad7a55d19649746d094399a436c40df3e6ab64f41e9575ea71ac6",
       "bytes": 751998,
       "origin": "Direct game BGRA framebuffer readback decoded to PNG; no desktop capture"
+    },
+    {
+      "file": "audit-final-eur-off-mailbox/game-buffer/game-only.png",
+      "sha256": "02764b4fb72c7e1e8c09969c657f9e3a054bf4a0a8801797bbc7e797105d9aba",
+      "bytes": 151954,
+      "origin": "Direct game BGRA framebuffer readback from clean build out/pr149-clean-final decoded to PNG; EUR baseline off; no desktop capture"
+    },
+    {
+      "file": "audit-final-eur-fsr3-mailbox/game-buffer/game-only.png",
+      "sha256": "9bf1a8f576513bb27f6747f2356ade588191ebd543e1e1f30761eab6ee54da38",
+      "bytes": 893270,
+      "origin": "Direct game BGRA framebuffer readback from clean build out/pr149-clean-final decoded to PNG; EUR FSR3 Mailbox; no desktop capture"
+    },
+    {
+      "file": "audit-final-usa-fsr3-fifo/game-buffer/game-only.png",
+      "sha256": "bf9b4208478069937b0192117e3c8d9788afc09855b2e42ce07a88dd087222d4",
+      "bytes": 1057717,
+      "origin": "Direct game BGRA framebuffer readback from clean build out/pr149-clean-final decoded to PNG; USA FSR3 FIFO; no desktop capture"
     }
   ]
 }
