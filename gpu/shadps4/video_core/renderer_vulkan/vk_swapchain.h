@@ -84,7 +84,8 @@ public:
     }
 
     [[nodiscard]] vk::Semaphore GetImageAcquiredSemaphore() const {
-        return image_acquired[frame_index];
+        return image_acquired.empty() ? vk::Semaphore{}
+                                      : image_acquired[acquire_index % image_acquired.size()];
     }
 
     [[nodiscard]] vk::Semaphore GetPresentReadySemaphore() const {
@@ -133,13 +134,16 @@ private:
     vk::CompositeAlphaFlagBitsKHR composite_alpha;
     std::vector<vk::Image> images;
     std::vector<vk::ImageView> images_view;
+    static constexpr u32 MAX_ACQUIRE_SLOTS = 16;
     std::vector<vk::Semaphore> image_acquired;
+    std::vector<vk::Fence> image_acquired_fences;
     std::vector<vk::Semaphore> present_ready;
     u32 width = 0;
     u32 height = 0;
     u32 image_count = 0;
     u32 image_index = 0;
     u32 frame_index = 0;
+    u32 acquire_index = 0;
     bool needs_recreation = true;
     bool zero_extent = false; ///< bbport: the surface was 0x0 (minimised) at the last Create
     bool needs_hdr = false;    // The game requested HDR swapchain

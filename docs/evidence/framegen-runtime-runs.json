@@ -85,6 +85,39 @@
       "write_after_present_errors": 10,
       "validation_layer_listed": true,
       "observation": "Live race observed past 1:13; session pair count includes menus/intro; completed laps not certified"
+    },
+    {
+      "name": "eur-off-mailbox-syncfix",
+      "log_sha256": "27b642c03b90e1b3eadeea3abb984d3b2ac245c0b472048b9d4db7e908370d5b",
+      "clean_exit": true,
+      "last_logged_pairs": 0,
+      "missing_transfer_usage_errors": 0,
+      "geometry_interface_errors": 2,
+      "write_after_present_errors": 0,
+      "validation_layer_listed": true,
+      "observation": "Host acquire fence synchronization and bottom-of-pipe barrier resolved WRITE_AFTER_PRESENT hazard"
+    },
+    {
+      "name": "eur-fsr3-mailbox-syncfix",
+      "log_sha256": "eb524c884408ed0ed599011c081598f49665c46d1719f64e9f2da636c5021cec",
+      "clean_exit": true,
+      "last_logged_pairs": 1200,
+      "missing_transfer_usage_errors": 0,
+      "geometry_interface_errors": 2,
+      "write_after_present_errors": 0,
+      "validation_layer_listed": true,
+      "observation": "60 FPS output sustained with 0 WRITE_AFTER_PRESENT hazards and 0 acquire semaphore operations pending"
+    },
+    {
+      "name": "usa-fsr3-fifo-syncfix",
+      "log_sha256": "b9b82a92b4308e430eeed9f12d3c6ace5b60cacc1396b0b272d08bea1a37f92a",
+      "clean_exit": true,
+      "last_logged_pairs": 600,
+      "missing_transfer_usage_errors": 0,
+      "geometry_interface_errors": 2,
+      "write_after_present_errors": 0,
+      "validation_layer_listed": true,
+      "observation": "FIFO presentation pacing and expanded acquire slot ring eliminated VUID-01779 and WRITE_AFTER_PRESENT"
     }
   ]
 }
