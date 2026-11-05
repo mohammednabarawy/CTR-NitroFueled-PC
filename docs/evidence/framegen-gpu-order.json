@@ -1,0 +1,54 @@
+{
+  "date": "2026-11-05",
+  "tool": "RenderDoc 1.47",
+  "region": "CUSA14876",
+  "version": "01.21",
+  "present_mode": "Mailbox",
+  "limitation": "GPU submission order, not physical scanout; raw game captures remain local",
+  "captures": [
+    {
+      "file": "capture_frame46564.rdc",
+      "sha256": "7b2a3eb0a239369a21542b26bdd2b3ca99aaa1e61ff9a0a9c617fd2591b8a023",
+      "dispatches": 54,
+      "presents": 1,
+      "blit_event": 2496,
+      "source": "ResourceId::6249",
+      "source_name": "2D Image 6249",
+      "destination_name": "Swapchain Image 0",
+      "replay_source_export": "<Result: 'Success'>"
+    },
+    {
+      "file": "capture_frame46565.rdc",
+      "sha256": "438312574f9bc129829b21bcdb00a1fa68d1652c58bc040049234c01c542b5aa",
+      "dispatches": 17,
+      "presents": 1,
+      "blit_event": 2201,
+      "source": "ResourceId::5348",
+      "source_name": "Frame image #0",
+      "destination_name": "Swapchain Image 0",
+      "replay_source_export": "<Result: 'Success'>"
+    },
+    {
+      "file": "capture_frame46566.rdc",
+      "sha256": "9cc53a2b4f48e24a7bd4ff4bb7125927ea36e752b5663dc3d5ac094cfe15d349",
+      "dispatches": 54,
+      "presents": 1,
+      "blit_event": 2496,
+      "source": "ResourceId::6338",
+      "source_name": "2D Image 6338",
+      "destination_name": "Swapchain Image 0",
+      "replay_source_export": "<Result: 'Success'>"
+    },
+    {
+      "file": "capture_frame46567.rdc",
+      "sha256": "11d9a0efd752709e06bdfdb7fe46a6b7bdf1f41704f42a1b48e75bca15fbdd9d",
+      "dispatches": 0,
+      "presents": 1,
+      "blit_event": 32,
+      "source": "ResourceId::5314",
+      "source_name": "Frame image #1",
+      "destination_name": "Swapchain Image 0",
+      "replay_source_export": "<Result: 'Success'>"
+    }
+  ]
+}

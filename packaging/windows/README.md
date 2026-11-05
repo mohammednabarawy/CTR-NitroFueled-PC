@@ -8,6 +8,9 @@ merged into SacredFire. Tested on Windows 11 24H2 with an NVIDIA RTX 3070.
 
 ## Build
 
+For the workspace-local CLANG64 installation and PowerShell command wrapper, see
+[WINDOWS_LOCAL_TOOLCHAIN.md](../../docs/WINDOWS_LOCAL_TOOLCHAIN.md).
+
 Install [MSYS2](https://www.msys2.org) into `C:\msys64`, open the **MSYS2 CLANG64** shell, run
 `pacman -Syu` (twice if it closes the window) and install the toolchain and libraries:
 

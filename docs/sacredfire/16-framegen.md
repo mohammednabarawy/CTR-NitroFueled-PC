@@ -1,18 +1,26 @@
-# Frame generation (v0.3)
+# Frame generation (experimental presenter integration)
+
+The local remediation connects the implementation to `Presenter::Present`. Driverless
+control-flow tests and an isolated clean shader build cover parts of the integration.
+A full clean Windows application build has now passed with the local CLANG64 toolchain.
+Local GPU captures show alternating generated and real swapchain blits, and visible title
+output has been recorded. Physical scanout, the full runtime matrix and remaining validation
+errors are still open; see the validation report below.
 
 `bbport.ini` `framegen=off|fsr3` (`fsr`, `on` and `1` from test builds also mean `fsr3`;
-`BB_FRAMEGEN` for scripts). In the launcher: Settings › Display › *Frame generation*; in game:
-Insert › *Frame generation*. Off by default, applies live.
+`BB_FRAMEGEN` for scripts). The file/environment setting is loaded at startup and defaults to
+off. This revision has no launcher or in-game frame-generation control. The presenter handles
+changes to the settings atomic, but editing the file while playing does not reload it.
 
 ## What it does
 
-AMD FSR 3.1.6 frame interpolation (optical flow + frame interpolation, the validated
+AMD FSR 3.1.6 frame interpolation (optical flow + frame interpolation, using the
 `ffx-vulkan::fsr3-vk-framegeneration-3.1.6` slice of
 [FireBurn/FSR-Vulkan](https://github.com/FireBurn/FSR-Vulkan), MIT) runs on every finished
-frame and returns the image halfway between it and the previous one. The presenter shows that
-generated frame first and the real frame half a game frame later, so the screen gets two evenly
-spaced images per game frame. The game itself, its FPS limit, the 60 FPS patch and the guest
-vblank are untouched: only what reaches the screen doubles.
+frame and computes an intermediate image between it and the previous one. The presenter queues
+that generated image first, followed by the real image. Non-FIFO modes wait half a smoothed
+game-frame interval between them, measured after generation completes on the GPU. FIFO uses
+the swapchain's refresh pacing. Physical scanout and smoothness still require runtime validation.
 
 ```
 game frames      N-1 ───────────────── N ───────────────── N+1
@@ -21,33 +29,33 @@ shown            N-1      G(N-1,N)     N      G(N,N+1)     N+1
 ```
 
 It works on the presenter's finished frame (post-processing done, HUD included); the port's own
-menu and FPS counter are drawn afterwards on every present, so they never smear. It works with
-every upscaler and every internal resolution, in menus and in split screen:
+menu and FPS counter are drawn afterwards on every present. Generation is suppressed while the
+port's settings menu is open. The call path takes the finished frame independently of upscaler
+selection and supports both regular and native-renderer presentation paths.
 
-- With FSR 3, FSR 4 or DLSS selected, the game's motion (the upscaler inputs pass: R32F depth
-  and RG16F pixel motion, the same jitter and camera) is handed to the interpolation whenever it
-  was written for this frame and is not larger than the frame (`game motion + optical flow`).
-- Otherwise (FSR 1, off, menus without a 3D scene, a 4K scene shown in a smaller window) flat far
-  depth and zero motion stand in and the optical flow carries the motion alone, like
-  driver-level frame generation.
+**The current presenter supplies color only.** Flat far depth and zero motion let optical flow
+carry motion. Although `CtrFrameGen::Inputs` has optional game-vector and HUD-less inputs, they
+are not connected. Reading `CtrFsr3`'s shared working images from the swap thread would race the
+next guest frame. Supporting those inputs requires per-frame snapshots with matching lifetime,
+size, format and synchronization. The game's HUD is currently part of the interpolated image.
 
 ## How to get a smooth result
 
-- **A 120 Hz or faster screen.** Frame generation doubles what is shown: at 144 Hz the ideal is
+- **A 120 Hz or faster screen.** Frame generation aims to double what is shown: at 144 Hz the ideal is
   the game at about 72 FPS (fps limit 72) and 144 images on screen. At 60 Hz it has nothing to
   gain.
 - **Present mode.** With `Fifo` (V-Sync) the two presents go out one refresh apart by themselves
   and the game settles at half the refresh rate. With `Mailbox`/`Immediate` the presenter waits
   half a game frame between the generated and the real present (the smoothed frame time).
-- The swapchain gets one more image while the setting is on at start (two presents per frame).
+- The existing swapchain image-count policy is retained; extra buffering is not implemented.
 
 ## Implementation
 
 - `vk_ctr_framegen.{h,cpp}` (`CtrFrameGen`, owned by the presenter). One FSR 3.1.6 context per
   frame size (render size = frame size, so the game-motion and optical-flow modes share it and
   switching between them only resets the history, never rebuilds the context).
-- `Presenter::PrepareFrame` → `GenerateFrame`: after the post-processing pass, on the draw
-  scheduler (the recording threads are drained by `CommandBuffer()`):
+- `Presenter::Present` → `CtrFrameGen::Record`: after acquiring a presentable swapchain image,
+  on `present_scheduler`, with the producer's submission issued before the present submission:
   1. the frame (General, MUTABLE_FORMAT) is read raw through a UNORM view of its own byte
      order and copied to an RGBA8 image (`fg_convert.comp`), the only backbuffer format 3.1.6
      takes;
@@ -57,59 +65,55 @@ every upscaler and every internal resolution, in menus and in split screen:
   3. the result is copied back into a per-presenter-frame output image in the frame's own
      format (BGRA swaps red and blue back), written through an RGBA8 storage view
      (MUTABLE_FORMAT + EXTENDED_USAGE). The presenter blits it exactly like the real frame.
-- `Presenter::Present` → `PresentGenerated`: acquire, blit, the overlay, submit (waiting on the
-  frame's draw submission), present; then the pacing wait (non-FIFO) and the real present as
-  before. With the in-game menu open the generated frames are not shown.
-- Frame ids start at 1 and are retired in order once the draw tick that recorded them has
-  completed (`Scheduler::IsFree`), all on the GPU thread: no deferred callback touches the
-  context from another thread.
+- `Presenter::PresentImage` blits either image, draws the overlay and submits through
+  `SubmitPresentImage`, waiting on the acquired-image semaphore and the producer's ready tick.
+  Only the real submission resets/signals `Frame::present_done`. A generated present followed
+  by acquisition failure drains `present_scheduler` before returning the slot for reuse.
+- Context creation, recording, output reads, retirement and resets all belong to the swap
+  thread and `present_scheduler`. Size changes and live disable cannot destroy an output still
+  read by another presentation thread. Frame ids are retired after the owning scheduler tick
+  completes (`Scheduler::IsFree`).
 - History resets: the first frame, a new frame size, a switch between game motion and optical
-  flow, more than 100 ms between frames (loads, pauses, hitches) and frames it cannot take
-  (10-bit HDR). A reset frame goes out alone.
+  flow, more than 100 ms between prepared frames (loads, pauses, hitches), skipped or reused
+  frames, swapchain recreation, menu transitions and unsupported HDR. A reset frame goes out alone.
+- `gpu/CMakeLists.txt` registers `fg_convert.comp` and links
+  `ffx-vulkan::fsr3-vk-framegeneration-3.1.6`; both are required in a clean build.
 
 ### FSR-Vulkan patches (`gpu/patches/fsr-vulkan`)
 
 - `0003`: the 3.1.6 wrapper tags the bridge frame on Prepare and retires its transient
   descriptor sets and constant buffers in RetireFrame (they leaked until out of memory).
-- `0004`: the bridge stages its per-pass constant buffers into persistent 256 KiB mapped slabs
-  instead of one `vkAllocateMemory` each. With frame generation on, the FSR 3 upscaler's
-  context creation failed with "out of memory" a few minutes into a session (the 2026-10-16
-  test logs: every run with a frame-generation context, never without one) and frame generation
-  then reset its history on every frame. On Windows each allocation is a kernel call counted
-  against the driver's allocation limit; dozens per frame were created and freed.
-
-### Upscaler changes that came with it
-
-- The FSR 3 upscaler context is created the first time FSR 3 itself runs (DLSS and FSR 4 never
-  needed it, but a failed creation used to turn them off too). A failed creation now falls back
-  to FSR 1 and is retried 600 frames later instead of staying off for the session.
+- `0004`: stages per-pass constant buffers into persistent 256 KiB mapped slabs rather than
+  making a Vulkan allocation per constant buffer.
+- `0005`: adds a host-visible uniform-buffer fallback when combined device-local/host-visible
+  memory cannot be allocated.
+- `0006`: adds the optional HUD-less color resource to the bridge API. The presenter currently
+  supplies no separate HUD-less image.
 
 ## Log lines
 
 ```
 FrameGen: FSR 3.1.6 context 1920x1080, 59.7 MB
-FrameGen: generating at 1920x1080 (game motion + optical flow)
-FrameGen: 72.0 game FPS -> 143.9 shown; totals: ... generated, ... not shown, ... history resets, ... with game motion (Fifo)
+FrameGen: generating at 1920x1080 (optical flow, no HUD-less frame yet)
+FrameGen: queued generated before real; total 600 pairs (16.67 ms, Fifo)
 FrameGen: <reason>; off for this session
 ```
 
-The status line comes every 10 s while the setting is on. *shown* should be about twice the
-game rate; *history resets* should only grow on loads and size changes.
+The pair line is emitted after the first successful pair of queue-present calls and every
+600 successful pairs thereafter. It counts queue-present success, not physical scanout:
+Mailbox may discard a queued image. Capture visible motion and presentation timing before
+making doubled-FPS or readiness claims.
 
-## What changed from the test builds of 2026-10-15/16
+## Validation
 
-Two test lines were merged here:
-
-- v1 (presenter-side, in `Present`) generated almost nothing: it waited for fresh game vectors
-  that the presenter's own timing rarely saw, and `framegen=fsr3` in `bbport.ini` was read as
-  off by its parser.
-- v2 (flip-time, `CtrFsr3::GenerateFlip`) generated, but presented the real frame *before* the
-  interpolated one (the generated image lies between the previous and the current frame, so the
-  motion went back and forth), had no pacing (with Mailbox the second present replaced the first
-  within microseconds), shared one output image between frames in flight, swizzled BGRA twice,
-  and reset its history on every frame once the FSR 3 upscaler context failed (above).
-
-v3 keeps v2's place in the frame and its layout fixes, and fixes the rest.
+- `tests/test_framegen_presenter.py` compiles the production `Present` and
+  `SubmitPresentImage` methods against fake WSI/FFX collaborators. It checks generated-before-real
+  order, producer waits, real-only fence signaling, Mailbox spacing, and skipped-frame recovery.
+  It does not execute `PresentImage`'s Vulkan commands or the FSR shaders.
+- `tests/test_framegen_build.py` uses the actual host-shader CMake function and registration to
+  build `fg_convert_comp.h` in a new directory. It does not replace a full application build.
+- See [FRAMEGEN_VALIDATION.md](../FRAMEGEN_VALIDATION.md) for local results, findings and
+  the remaining runtime acceptance checks.
 
 ## Known limits
 

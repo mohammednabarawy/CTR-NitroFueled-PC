@@ -1,0 +1,79 @@
+{
+  "date": "2026-11-05",
+  "source_branch": "codex/pr149-framegen",
+  "source_commit": "523dd970256821a6d7b4513ddbb9157e7a714e9e",
+  "executable_sha256": "9f69f554072777582ca9c94706f56de93cab8fa903666753d518ddef02e4439f",
+  "limitation": "Counts are log observations. Startup coverage does not establish sustained gameplay or physical scanout.",
+  "cases": [
+    {
+      "name": "eur-fsr3-immediate-fixed",
+      "log_sha256": "d16581d505e929ebcb3c49c8340b3ffb52151e590f69706d3aff95ea3358737a",
+      "clean_exit": true,
+      "last_logged_pairs": 28200,
+      "missing_transfer_usage_errors": 0,
+      "geometry_interface_errors": 20,
+      "write_after_present_errors": 10,
+      "validation_layer_listed": true
+    },
+    {
+      "name": "usa-off-fifo",
+      "log_sha256": "4afd71d98ee1d3432c1bd26626fd55fd947c38f4a3fdcbcdb1f2906d69612c9a",
+      "clean_exit": true,
+      "last_logged_pairs": 0,
+      "missing_transfer_usage_errors": 0,
+      "geometry_interface_errors": 20,
+      "write_after_present_errors": 0,
+      "validation_layer_listed": true
+    },
+    {
+      "name": "usa-fsr3-fifo",
+      "log_sha256": "44e5028bcac6c898209a6c044b934ea2948fe418e7c79488ad417ee17b1d3414",
+      "clean_exit": true,
+      "last_logged_pairs": 4200,
+      "missing_transfer_usage_errors": 0,
+      "geometry_interface_errors": 20,
+      "write_after_present_errors": 10,
+      "validation_layer_listed": true
+    },
+    {
+      "name": "eur-native-off",
+      "log_sha256": "2ecc5e526d149e61a8ee1c25cf59625294df9c7caaf0bc2f1a7c8fe80db246bc",
+      "clean_exit": true,
+      "last_logged_pairs": 0,
+      "missing_transfer_usage_errors": 0,
+      "geometry_interface_errors": 0,
+      "write_after_present_errors": 0,
+      "validation_layer_listed": true
+    },
+    {
+      "name": "eur-native-fsr3",
+      "log_sha256": "5c8b2225ebe88b78db5b4e0e8cf5a65d4e74d1e32c060816ab3d632daabe5bc9",
+      "clean_exit": true,
+      "last_logged_pairs": 1200,
+      "missing_transfer_usage_errors": 0,
+      "geometry_interface_errors": 0,
+      "write_after_present_errors": 0,
+      "validation_layer_listed": true
+    },
+    {
+      "name": "usa-native-off",
+      "log_sha256": "7e96a3245adec15a5ec0bcf24175a46ea0bf0318fe9c573f1c7b03c52f8ad00d",
+      "clean_exit": true,
+      "last_logged_pairs": 0,
+      "missing_transfer_usage_errors": 0,
+      "geometry_interface_errors": 0,
+      "write_after_present_errors": 0,
+      "validation_layer_listed": true
+    },
+    {
+      "name": "usa-native-fsr3",
+      "log_sha256": "7484cd6f4efa809293cb703f4dc3d7cb6f1f15bdacb236c5e1af3cb7ba88a955",
+      "clean_exit": true,
+      "last_logged_pairs": 1800,
+      "missing_transfer_usage_errors": 0,
+      "geometry_interface_errors": 0,
+      "write_after_present_errors": 0,
+      "validation_layer_listed": true
+    }
+  ]
+}
