@@ -120,12 +120,21 @@ void Swapchain::SetHDR(bool hdr) {
 
 bool Swapchain::AcquireNextImage() {
     vk::Device device = instance.GetDevice();
+    const u32 slot = acquire_index % image_acquired.size();
+    vk::Fence fence = image_acquired_fences[slot];
+
     vk::Result result =
         device.acquireNextImageKHR(swapchain, std::numeric_limits<u64>::max(),
-                                   image_acquired[frame_index], VK_NULL_HANDLE, &image_index);
+                                   image_acquired[slot], fence, &image_index);
 
     switch (result) {
     case vk::Result::eSuccess:
+        if (fence) {
+            auto wait_res = device.waitForFences(fence, VK_TRUE, std::numeric_limits<u64>::max());
+            if (wait_res == vk::Result::eSuccess) {
+                (void)device.resetFences(fence);
+            }
+        }
         break;
     case vk::Result::eSuboptimalKHR:
     case vk::Result::eErrorSurfaceLostKHR:
@@ -161,6 +170,7 @@ bool Swapchain::Present() {
     }
 
     frame_index = (frame_index + 1) % image_count;
+    acquire_index++;
 
     return !needs_recreation;
 }
@@ -289,17 +299,23 @@ void Swapchain::Destroy() {
     for (const auto& sem : image_acquired) {
         device.destroySemaphore(sem);
     }
+    for (const auto& fence : image_acquired_fences) {
+        device.destroyFence(fence);
+    }
     for (const auto& sem : present_ready) {
         device.destroySemaphore(sem);
     }
 
     image_acquired.clear();
+    image_acquired_fences.clear();
     present_ready.clear();
 }
 
 void Swapchain::RefreshSemaphores() {
     const vk::Device device = instance.GetDevice();
-    image_acquired.resize(image_count);
+    const u32 acquire_slots = std::max(image_count * 4, MAX_ACQUIRE_SLOTS);
+    image_acquired.resize(acquire_slots);
+    image_acquired_fences.resize(acquire_slots);
     present_ready.resize(image_count);
 
     for (vk::Semaphore& semaphore : image_acquired) {
@@ -309,6 +325,13 @@ void Swapchain::RefreshSemaphores() {
                    vk::to_string(semaphore_result));
         semaphore = sem;
     }
+    for (vk::Fence& fence : image_acquired_fences) {
+        auto [fence_result, f] = device.createFence({});
+        ASSERT_MSG(fence_result == vk::Result::eSuccess,
+                   "Failed to create image acquired fence: {}",
+                   vk::to_string(fence_result));
+        fence = f;
+    }
     for (vk::Semaphore& semaphore : present_ready) {
         auto [semaphore_result, sem] = device.createSemaphore({});
         ASSERT_MSG(semaphore_result == vk::Result::eSuccess,
@@ -316,10 +339,14 @@ void Swapchain::RefreshSemaphores() {
         semaphore = sem;
     }
 
-    for (u32 i = 0; i < image_count; ++i) {
+    for (u32 i = 0; i < acquire_slots; ++i) {
         SetObjectName(device, image_acquired[i], "Swapchain Semaphore: image_acquired {}", i);
+        SetObjectName(device, image_acquired_fences[i], "Swapchain Fence: image_acquired {}", i);
+    }
+    for (u32 i = 0; i < image_count; ++i) {
         SetObjectName(device, present_ready[i], "Swapchain Semaphore: present_ready {}", i);
     }
+    acquire_index = 0;
 }
 
 void Swapchain::SetupImages() {

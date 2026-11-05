@@ -77,11 +77,23 @@ transfer-source/destination usage. Both flags were added and the corrected runti
 The corrected Immediate run produced no instances of the earlier
 `VUID-VkImageMemoryBarrier-oldLayout-01212` or `VUID-vkCmdCopyImage-aspect-06662`.
 
-Other errors remain: `VUID-RuntimeSpirv-OpEntryPoint-08743` (geometry input interface) and
-`SYNC-HAZARD-WRITE-AFTER-PRESENT`. They also occur with generation disabled. Their causes
-remain unresolved; they are not certified harmless. RenderDoc's empty replay debug-message
-lists do not establish a globally clean validation run.
-The disabled sync-validation comparison is in `out/eur-off-mailbox-validation-console.log`.
+Vulkan Synchronization Validation also surfaced two presenter lifecycle issues:
+1. `SYNC-HAZARD-WRITE-AFTER-PRESENT`: SyncVal tracks swapchain image presentation release via
+   host fence waits (`SyncValidator::WaitForFence` calling `ApplyAcquireWait`). Passing
+   `VK_NULL_HANDLE` for the acquire fence prevented SyncVal from recording present completion,
+   while `PresentImage` omitted `dstStageMask = eBottomOfPipe` when transitioning to
+   `ePresentSrcKHR`. A dedicated acquire fence pool with host wait/reset and compliant bottom-of-pipe
+   barriers resolved this hazard (0 instances across both disabled and FSR 3.1 runs).
+2. `VUID-vkAcquireNextImageKHR-semaphore-01779`: In FIFO mode with frame generation active,
+   `image_acquired` was restricted to `image_count` (3) semaphores while presenting 2 images
+   per guest frame. Skipping `present_scheduler.Wait(generated_tick)` in FIFO mode allowed
+   semaphore reuse while previous submissions were still pending. Expanding the acquire semaphore
+   ring buffer to 16 slots and synchronizing generated submission completion eliminated this error.
+
+The baseline geometry input interface issue `VUID-RuntimeSpirv-OpEntryPoint-08743` originates in
+the guest PS4 shader translator pipeline and remains separate from presenter synchronization.
+Recent sync-validation comparison logs include `out/test-eur-off-mailbox-fix-console.log`,
+`out/test-eur-fsr3-mailbox-fix-console.log`, and `out/test-usa-fsr3-fifo-fix-console.log`.
 
 ## Still required
 

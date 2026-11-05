@@ -13,6 +13,10 @@ Existing installed binaries and saves were preserved; runtime tests use isolated
   The shader is registered in CMake and the FSR 3.1.6 frame-generation library is linked.
 - Runtime Vulkan validation exposed missing transfer usage on FSR working images. Both
   transfer-source and transfer-destination usage flags are now included.
+- Vulkan synchronization hazards (`WRITE-AFTER-PRESENT` and `VUID-01779`) were resolved by adding
+  a 16-slot acquire semaphore and fence ring, waiting on acquire fences to clear SyncVal presentation
+  records, transitioning swapchain images to `ePresentSrcKHR` with `eBottomOfPipe` stage mask, and
+  synchronizing generated frame submissions unconditionally before real-frame re-acquisition.
 - Patch Expected references must be valid, cover the overwrite, and match exactly one site.
   When Signature is also supplied, Expected verifies that resolved site.
 - Recognizable truncated/damaged IGA archives are rejected. Dump merges build in a sibling
