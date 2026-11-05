@@ -40,6 +40,8 @@ unconnected. Unsupported HDR formats bypass generation.
   The generated captures include the additional compute dispatches and copy work. The local
   replay report is `out/runtime-evidence/eur-fsr3-mailbox-capture/pair-analysis.json`.
   A [sanitized summary with capture hashes](evidence/framegen-gpu-order.json) is in Git.
+  These captures predate the later acquire-fence synchronization revision; they do not
+  certify physical presentation order or quality for the latest revision.
 
 | Capture | Blit event | Source | Dispatches | Presents |
 |---|---:|---|---:|---:|
@@ -77,23 +79,42 @@ transfer-source/destination usage. Both flags were added and the corrected runti
 The corrected Immediate run produced no instances of the earlier
 `VUID-VkImageMemoryBarrier-oldLayout-01212` or `VUID-vkCmdCopyImage-aspect-06662`.
 
-Vulkan Synchronization Validation also surfaced two presenter lifecycle issues:
-1. `SYNC-HAZARD-WRITE-AFTER-PRESENT`: SyncVal tracks swapchain image presentation release via
-   host fence waits (`SyncValidator::WaitForFence` calling `ApplyAcquireWait`). Passing
-   `VK_NULL_HANDLE` for the acquire fence prevented SyncVal from recording present completion,
-   while `PresentImage` omitted `dstStageMask = eBottomOfPipe` when transitioning to
-   `ePresentSrcKHR`. A dedicated acquire fence pool with host wait/reset and compliant bottom-of-pipe
-   barriers resolved this hazard (0 instances across both disabled and FSR 3.1 runs).
-2. `VUID-vkAcquireNextImageKHR-semaphore-01779`: In FIFO mode with frame generation active,
-   `image_acquired` was restricted to `image_count` (3) semaphores while presenting 2 images
-   per guest frame. Skipping `present_scheduler.Wait(generated_tick)` in FIFO mode allowed
-   semaphore reuse while previous submissions were still pending. Expanding the acquire semaphore
-   ring buffer to 16 slots and synchronizing generated submission completion eliminated this error.
+The synchronization revision expands the acquire semaphore/fence pool to at least 16 slots
+(`max(image_count * 4, 16)`), waits for generated GPU completion in FIFO as well as non-FIFO,
+waits/resets acquire fences on the host, and uses bottom-of-pipe presentation barriers.
+Acquire-fence wait/reset failures are now checked instead of silently continuing. The
+driverless harness also asserts generated completion before the real frame in FIFO.
 
-The baseline geometry input interface issue `VUID-RuntimeSpirv-OpEntryPoint-08743` originates in
-the guest PS4 shader translator pipeline and remains separate from presenter synchronization.
-Recent sync-validation comparison logs include `out/test-eur-off-mailbox-fix-console.log`,
-`out/test-eur-fsr3-mailbox-fix-console.log`, and `out/test-usa-fsr3-fifo-fix-console.log`.
+The first three `test-*-fix` logs are **excluded as validation evidence**: each reports
+`Requested layer VK_LAYER_KHRONOS_validation is not available` and exits with code
+`4294967295`. Previous `validation_layer_listed=true` and `clean_exit=true` fields were
+incorrect and have been corrected. Historical cases retain their own executable fingerprints;
+new runs no longer inherit the old executable hash.
+
+Fresh runs explicitly supplied the Windows path to the local validation manifest, requested
+both core and synchronization validation, and ended by closing the game normally:
+
+| Audit case | Generation | Mode | WRITE-AFTER-PRESENT | 01779 | All logged sync hazards | Exit |
+|---|---|---|---:|---:|---:|---:|
+| `audit-eur-off-mailbox` | off | Mailbox | 0 | 0 | 0 | 0 |
+| `audit-eur-fsr3-mailbox` | fsr3 | Mailbox | 0 | 0 | 0 | 0 |
+| `audit-usa-fsr3-fifo` | fsr3 | Fifo | 0 | 0 | 0 | 0 |
+
+The enabled runs logged 6,000 and 7,200 successful generated/real pairs respectively. These
+are startup/title observations, not completed races or measured 60 FPS physical scanout.
+The new USA snapshot was read directly from the game's BGRA buffer; it contains no desktop.
+
+These results support the combined synchronization change for the observed intervals, not
+an isolated causal proof for each change. An acquire fence is optional when a semaphore is
+provided: the [Vulkan acquire contract](https://docs.vulkan.org/refpages/latest/refpages/source/vkAcquireNextImageKHR.html)
+requires the reused semaphore to have no pending operations. SyncVal handles acquired images
+through both host fence waits and
+[submit semaphore waits](https://github.com/KhronosGroup/Vulkan-ValidationLayers/blob/main/layers/sync/sync_submit.cpp).
+It is therefore inaccurate to claim that only a host acquire-fence wait can synchronize
+presentation, or that every valid presentation transition requires bottom-of-pipe.
+
+The geometry input interface issue `VUID-RuntimeSpirv-OpEntryPoint-08743` is still logged in
+all three audit runs. Its cause has not been resolved or certified harmless.
 
 ## Still required
 

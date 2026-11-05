@@ -50,5 +50,6 @@
       "destination_name": "Swapchain Image 0",
       "replay_source_export": "<Result: 'Success'>"
     }
-  ]
+  ],
+  "revision_note": "Historical capture of the initial presenter integration, before the later acquire-fence synchronization revision."
 }

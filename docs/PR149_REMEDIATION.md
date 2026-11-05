@@ -13,10 +13,10 @@ Existing installed binaries and saves were preserved; runtime tests use isolated
   The shader is registered in CMake and the FSR 3.1.6 frame-generation library is linked.
 - Runtime Vulkan validation exposed missing transfer usage on FSR working images. Both
   transfer-source and transfer-destination usage flags are now included.
-- Vulkan synchronization hazards (`WRITE-AFTER-PRESENT` and `VUID-01779`) were resolved by adding
-  a 16-slot acquire semaphore and fence ring, waiting on acquire fences to clear SyncVal presentation
-  records, transitioning swapchain images to `ePresentSrcKHR` with `eBottomOfPipe` stage mask, and
-  synchronizing generated frame submissions unconditionally before real-frame re-acquisition.
+- Synchronization changes add an acquire semaphore/fence ring of at least 16 slots, host
+  acquire-fence waits with checked wait/reset results, bottom-of-pipe presentation barriers,
+  and generated GPU completion waits in every mode. Three reruns with validation available
+  logged zero presentation hazards and zero 01779 errors; broader stability remains unproven.
 - Patch Expected references must be valid, cover the overwrite, and match exactly one site.
   When Signature is also supplied, Expected verifies that resolved site.
 - Recognizable truncated/damaged IGA archives are rejected. Dump merges build in a sibling
@@ -30,9 +30,13 @@ Existing installed binaries and saves were preserved; runtime tests use isolated
 The isolated full clean Windows build produced `sacredfire.exe`, the launcher and the GPU
 capability tool. The final incremental rebuild passed after the usage-flag fix and launcher
 argument correction. See `out/pr149-final-build.log`.
+The later audit rebuilt the runtime and launcher after the synchronization and Arabic fixes
+(`out/pr149-audit-build.log`), and rebuilt the independent Arabic launcher and frame-generation
+runtime (`out/pr149-split/arabic-audit-build.log`, `framegen-audit-build.log`). These were
+incremental builds, not fresh clean builds; no warnings were logged in those rebuilds.
 
-The aggregate targeted run passed **64 tests**, with no skips or failures, in
-`out/pr149-final-tests.log`: 30 patch, 15 game-check, seven merge, two locale, two
+The latest aggregate targeted run passed **67 tests**, with no skips or failures, in
+`out/pr149-audit-tests.log`: 30 patch, 15 game-check, seven merge, five locale/Arabic, two
 frame-generation and eight telemetry tests. The presenter test contains 13 driverless
 scenarios; these test production control flow but do not execute Vulkan or FSR shaders.
 
@@ -41,7 +45,7 @@ Four independent branches were prepared against upstream main
 
 | Branch suffix | Independent checks |
 |---|---|
-| `arabic` | Launcher build and two locale tests; translation remains partial |
+| `arabic` | Launcher build and five locale/coverage tests; 449 GTK keys and 531 Windows entries |
 | `themes` | Launcher build, including `--tab` |
 | `patch-behavior` | 55 patch/archive/merge tests, preserving current upstream tests |
 | `framegen` | Clean runtime, launcher and capability-tool build; two frame-generation tests |

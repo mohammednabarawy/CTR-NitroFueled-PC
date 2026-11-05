@@ -7,7 +7,7 @@ These independent branches start from upstream main
 
 | Change | Fork branch | Scope and limits |
 |---|---|---|
-| Arabic | [codex/pr149-arabic](https://github.com/mohammednabarawy/CTR-NitroFueled-PC/tree/codex/pr149-arabic) | RTL shaping, locale registration and partial translation; 275 of 440 GTK strings remain English fallbacks. Preserves upstream Indonesian support. |
+| Arabic | [codex/pr149-arabic](https://github.com/mohammednabarawy/CTR-NitroFueled-PC/tree/codex/pr149-arabic) | RTL shaping, 449 GTK keys and 531 Windows entries, with tests for static key coverage and format preservation. Preserves upstream Indonesian support. Visual layout and translation quality still need user review. |
 | Themes | [codex/pr149-themes](https://github.com/mohammednabarawy/CTR-NitroFueled-PC/tree/codex/pr149-themes) | Five persisted launcher themes and actual startup `--tab` parsing. |
 | Frame generation | [codex/pr149-framegen](https://github.com/mohammednabarawy/CTR-NitroFueled-PC/tree/codex/pr149-framegen) | Experimental color-only FSR 3.1.6, presenter wiring, build integration and control-flow tests. See the runtime report; stability is unproven. |
 | Patch/archive/merge | [codex/pr149-patch-behavior](https://github.com/mohammednabarawy/CTR-NitroFueled-PC/tree/codex/pr149-patch-behavior) | Expected verification, damaged archive checks and staged publication of merges; 55 independent regression tests pass. |
