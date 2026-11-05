@@ -24,6 +24,14 @@ unconnected. Unsupported HDR formats bypass generation.
   The overlay is not a physical-scanout measurement. Maximizing resized the active FSR
   context from 1466x825 to 1793x1009; visible output continued. Minimize and restore also
   recovered visible animated output with generation still active.
+- Native-renderer startup comparisons also reached visible title/intro output in both EUR
+  and USA, off and on, using Mailbox. Logs explicitly confirm native-only drawing. Disabled
+  runs show a 30 FPS overlay; enabled runs show approximately 60 FPS and successful pairs.
+  These are startup observations, not native-renderer sustained-race acceptance.
+  USA native resize recreated the 1793x1009 FSR context and resumed pairs; minimize/restore
+  recovered visible title animation as well.
+  The [run summary](evidence/framegen-runtime-runs.json) records executable/log hashes,
+  clean exits and logged validation counts. A listed layer alone does not certify coverage.
 - Four consecutive RenderDoc 1.47 GPU captures replayed successfully. Actual swapchain blits
   alternate generated output, `Frame image #0`, generated output, `Frame image #1`.
   The generated captures include the additional compute dispatches and copy work. The local
@@ -64,8 +72,8 @@ lists do not establish a globally clean validation run.
 
 ## Still required
 
-- Complete native-renderer comparisons for both regional dumps and USA sustained-race checks.
-- Extend resize and minimize/restore observations to native rendering and gameplay.
+- Complete native-renderer sustained-race comparisons and USA sustained-race checks.
+- Extend resize and minimize/restore observations to gameplay and repeated stress cycles.
 - Exercise actual HDR bypass on an HDR swapchain; driverless coverage alone is insufficient.
 - Finish race/pacing and artifact checks in both regions. Capture physical presentation
   timing when ETW access is available; review visible motion for ghosting/HUD artifacts.
