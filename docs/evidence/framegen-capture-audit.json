@@ -77,6 +77,12 @@
       "file": "usa-fsr3-fifo/intro-game-only.mp4",
       "sha256": "43d739aa91c750922bf6d98ad41e350fa4c80608e73922e718000dea4116d552",
       "bytes": 11112591
+    },
+    {
+      "file": "audit-usa-fsr3-fifo/game-buffer/game-only.png",
+      "sha256": "24c0b0739c9ad7a55d19649746d094399a436c40df3e6ab64f41e9575ea71ac6",
+      "bytes": 751998,
+      "origin": "Direct game BGRA framebuffer readback decoded to PNG; no desktop capture"
     }
   ]
 }
