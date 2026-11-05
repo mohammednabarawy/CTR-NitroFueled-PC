@@ -32,8 +32,14 @@ capability tool. The final incremental rebuild passed after the usage-flag fix a
 argument correction. See `out/pr149-final-build.log`.
 The later audit rebuilt the runtime and launcher after the synchronization and Arabic fixes
 (`out/pr149-audit-build.log`), and rebuilt the independent Arabic launcher and frame-generation
-runtime (`out/pr149-split/arabic-audit-build.log`, `framegen-audit-build.log`). These were
-incremental builds, not fresh clean builds; no warnings were logged in those rebuilds.
+runtime (`out/pr149-split/arabic-audit-build.log`, `framegen-audit-build.log`).
+
+A subsequent reproducible clean build from an empty directory was performed in `out/pr149-clean-final`
+producing `sacredfire.exe` (`f9ecfc3c0073870d99be967475330d6e552e7daf830e79297ac3448c33ccfb59`),
+`CTR-NitroFueled-PC.exe` (`0f6f841f2f6ad3dbf44ed8ab2a8646ac6ff37cc41990187b9f48c48e91c51f79`), and
+`bb-gpu-capabilities.exe` (`e86711919e2ac7246fc622656014f4428c1ac88e7d313854b1ca8b5b9614b5fb`) with
+zero warnings. Full Vulkan sync validation runs against this binary (`audit-final-*`) confirmed zero
+hazards and clean exit code 0 across EUR baseline, EUR FSR3 Mailbox, and USA FSR3 FIFO.
 
 The latest aggregate targeted run passed **67 tests**, with no skips or failures, in
 `out/pr149-audit-tests.log`: 30 patch, 15 game-check, seven merge, five locale/Arabic, two
