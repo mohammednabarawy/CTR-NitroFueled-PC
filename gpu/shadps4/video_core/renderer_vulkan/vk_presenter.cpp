@@ -28,6 +28,7 @@
 #include <chrono>
 #include <cmath>
 #include <csetjmp>
+#include <cstdio>
 #include <cstring>
 #include <ctime>
 #include <filesystem>
@@ -38,6 +39,7 @@
 #include <span>
 #include <sstream>
 #include <system_error>
+#include <thread>
 #include <vector>
 #include <vk_mem_alloc.h>
 #ifdef MemoryBarrier
@@ -157,7 +159,7 @@ Presenter::Presenter(Frontend::WindowSDL& window_, AmdGpu::Liverpool* liverpool_
       instance{window, EmulatorSettings.GetGpuId(), EmulatorSettings.IsVkValidationEnabled(),
                EmulatorSettings.IsVkCrashDiagnosticEnabled()},
       draw_scheduler{instance, true}, present_scheduler{instance}, flip_scheduler{instance},
-      native_scheduler{instance},
+      native_scheduler{instance}, framegen{instance, present_scheduler},
       swapchain{instance, window}, runtime{instance, draw_scheduler},
       // lab BB_VK_NATIVE_ONLY: no Rasterizer (texture and buffer caches, page manager, draw
       // pipeline); the native renderer tracks guest memory itself (BbMem)
@@ -199,6 +201,7 @@ Presenter::~Presenter() {
     present_scheduler.Finish();
     flip_scheduler.Finish();
     native_scheduler.Finish();
+    framegen.Reset();
     Check(draw_scheduler.CommandBuffer().reset());
     Check(present_scheduler.CommandBuffer().reset());
     Check(flip_scheduler.CommandBuffer().reset());
@@ -710,17 +713,112 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
     // (late fences, garbage buffers: device lost, code 23, a few minutes after minimising).
     // Never called under submit_mutex: the draw thread needs it to submit the frame.
     const auto skip_frame = [&] {
+        framegen_reset = true;
         if (frame->ready_semaphore == draw_scheduler.GetWorkSemaphore()->Handle()) {
             draw_scheduler.WaitSubmitted(frame->ready_tick);
-            draw_scheduler.GetWorkSemaphore()->Wait(frame->ready_tick);
         }
+        // Also covers native/CPU-flip frames whose work is not on the draw scheduler.
+        Check(instance.GetDevice().waitSemaphores(
+            vk::SemaphoreWaitInfo{.semaphoreCount = 1,
+                                  .pSemaphores = &frame->ready_semaphore,
+                                  .pValues = &frame->ready_tick},
+            std::numeric_limits<u64>::max()));
         free_frame();
     };
 
-    // bbport: nothing to present to while the window is minimised (a 0x0 surface, issue #31).
-    if (window.GetWidth() == 0 || window.GetHeight() == 0) {
+    if (!AcquirePresentImage()) {
         skip_frame();
         return;
+    }
+
+    // All frame-generation state and images belong to this thread/scheduler. In particular,
+    // a live toggle or size reset cannot destroy an output another thread is still presenting.
+    // The first submission below waits for the producer, including asynchronous draw submits.
+    if (frame->ready_semaphore == draw_scheduler.GetWorkSemaphore()->Handle()) {
+        draw_scheduler.WaitSubmitted(frame->ready_tick);
+    }
+    const bool eligible = !is_reusing_frame && is_game_frame && !BbOverlay::MenuOpen();
+    bool generated = false;
+    if (eligible) {
+        float elapsed_ms = 16.6f;
+        if (last_generated_input.time_since_epoch().count()) {
+            elapsed_ms = std::chrono::duration<float, std::milli>(
+                             frame->prepared_at - last_generated_input).count();
+        }
+        const bool discontinuity = elapsed_ms <= 0.0f || elapsed_ms > 100.0f;
+        if (framegen_reset || discontinuity) {
+            framegen_interval_ms = std::clamp(elapsed_ms, 1.0f, 100.0f);
+        } else {
+            framegen_interval_ms += 0.1f * (elapsed_ms - framegen_interval_ms);
+        }
+        last_generated_input = frame->prepared_at;
+        // Until per-frame copies of game vectors/HUD-less color are supplied, use optical
+        // flow on the finished frame. Reading the upscaler's shared images here would race
+        // the next guest frame, which may already be rendering on the GPU thread.
+        generated = framegen.Record({.slot = frame->id,
+                                     .color = frame->is_hdr ? vk::Image{} : frame->image,
+                                     .color_format = swapchain.GetSurfaceFormat().format,
+                                     .width = frame->width,
+                                     .height = frame->height,
+                                     .frame_ms = framegen_interval_ms,
+                                     .reset = framegen_reset || discontinuity});
+        framegen_reset = false;
+    } else {
+        framegen_reset = true;
+    }
+
+    if (generated) {
+        // G(N-1,N) precedes N. The real submission alone signals present_done, keeping the
+        // frame and its generated output unavailable for reuse until both reads finish.
+        const u64 generated_tick = present_scheduler.CurrentTick();
+        const bool presented = PresentImage(frame, framegen.OutputImage(frame->id), false);
+        if (!presented) {
+            present_scheduler.Finish(); // a generated read may still be in flight
+            skip_frame();
+            return;
+        }
+        // Start the spacing after generation has completed, not while the GPU may still be
+        // drawing the input. Otherwise both Mailbox presents can become ready together.
+        if (swapchain.GetPresentMode() != vk::PresentModeKHR::eFifo) {
+            present_scheduler.Wait(generated_tick);
+        }
+        const auto generated_at = std::chrono::steady_clock::now();
+        if (!AcquirePresentImage()) {
+            present_scheduler.Finish();
+            skip_frame();
+            return;
+        }
+        if (swapchain.GetPresentMode() != vk::PresentModeKHR::eFifo) {
+            std::this_thread::sleep_until(generated_at + std::chrono::duration_cast<
+                std::chrono::steady_clock::duration>(
+                std::chrono::duration<float, std::milli>(framegen_interval_ms * 0.5f)));
+        }
+    }
+    const bool presented = PresentImage(frame, frame->image, true);
+    if (!presented) {
+        framegen_reset = true;
+    }
+    // This counts successful queue-present calls, not proof of physical scanout (Mailbox
+    // may discard a queued image). Runtime capture is still needed to verify visible order.
+    if (generated && presented) {
+        ++generated_present_count;
+        if (generated_present_count == 1 || generated_present_count % 600 == 0) {
+            std::printf("FrameGen: queued generated before real; total %llu pairs (%.2f ms, %s)\n",
+                        static_cast<unsigned long long>(generated_present_count), framegen_interval_ms,
+                        vk::to_string(swapchain.GetPresentMode()).c_str());
+            std::fflush(stdout);
+        }
+    }
+    free_frame();
+    if (!is_reusing_frame && is_game_frame) {
+        DebugState.IncFlipFrameNum();
+    }
+}
+
+bool Presenter::AcquirePresentImage() {
+    // bbport: nothing to present to while the window is minimised (a 0x0 surface, issue #31).
+    if (window.GetWidth() == 0 || window.GetHeight() == 0) {
+        return false;
     }
     // Recreate the swapchain if the window was resized (or was minimised at the last try).
     // SacredFire: Recreate waits for the device to go idle, which needs every queue to itself:
@@ -734,9 +832,9 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
             swapchain.Recreate(window.GetWidth(), window.GetHeight());
             presentable = swapchain.IsPresentable();
         }
+        framegen_reset = true;
         if (!presentable) {
-            skip_frame();
-            return;
+            return false;
         }
     }
 
@@ -747,27 +845,26 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
             swapchain.Recreate(window.GetWidth(), window.GetHeight());
             acquired = swapchain.AcquireNextImage();
         }
+        framegen_reset = true;
         if (!acquired) {
             // User resizes the window too fast and GPU can't keep up. Skip this frame.
             LOG_WARNING(Render_Vulkan, "Skipping frame!");
-            skip_frame();
-            return;
+            return false;
         }
     }
 
-    // Reset fence for queue submission. Do it here instead of GetRenderFrame() because we may
-    // skip frame because of slow swapchain recreation. If a frame skip occurs, we skip signal
-    // the frame's present fence and future GetRenderFrame() call will hang waiting for this frame.
-    const auto reset_result = instance.GetDevice().resetFences(frame->present_done);
-    ASSERT_MSG(reset_result == vk::Result::eSuccess,
-               "Unexpected error resetting present done fence: {}", vk::to_string(reset_result));
+    return true;
+}
 
+bool Presenter::PresentImage(Frame* frame, vk::Image image, bool real_frame) {
     // bbport: the game frame is blitted (letterboxed) straight into the swapchain image.
     const vk::Image swapchain_image = swapchain.Image();
     auto& scheduler = present_scheduler;
     const auto cmdbuf = scheduler.CommandBuffer();
-    DumpFinalFrameIfDue(instance, scheduler, cmdbuf, frame->image, frame->width, frame->height,
-                        swapchain.GetSurfaceFormat().format);
+    if (real_frame) {
+        DumpFinalFrameIfDue(instance, scheduler, cmdbuf, image, frame->width, frame->height,
+                            swapchain.GetSurfaceFormat().format);
+    }
 
     if (EmulatorSettings.IsVkHostMarkersEnabled()) {
         cmdbuf.beginDebugUtilsLabelEXT(vk::DebugUtilsLabelEXT{
@@ -797,13 +894,13 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
                 .subresourceRange = color_range,
             },
             vk::ImageMemoryBarrier{
-                .srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite,
+                .srcAccessMask = vk::AccessFlagBits::eMemoryWrite,
                 .dstAccessMask = vk::AccessFlagBits::eTransferRead,
                 .oldLayout = vk::ImageLayout::eGeneral,
                 .newLayout = vk::ImageLayout::eTransferSrcOptimal,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = frame->image,
+                .image = image,
                 .subresourceRange = color_range,
             },
         };
@@ -818,7 +915,7 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
         };
         cmdbuf.pipelineBarrier(vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
                                vk::DependencyFlagBits::eByRegion, clear_done, {}, {});
-        cmdbuf.blitImage(frame->image, vk::ImageLayout::eTransferSrcOptimal, swapchain_image,
+        cmdbuf.blitImage(image, vk::ImageLayout::eTransferSrcOptimal, swapchain_image,
                          vk::ImageLayout::eTransferDstOptimal,
                          MakeCinematicBlit(frame->width, frame->height, extent.width, extent.height),
                          vk::Filter::eLinear);
@@ -840,12 +937,12 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
             },
             vk::ImageMemoryBarrier{
                 .srcAccessMask = vk::AccessFlagBits::eTransferRead,
-                .dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite,
+                .dstAccessMask = vk::AccessFlagBits::eMemoryRead | vk::AccessFlagBits::eMemoryWrite,
                 .oldLayout = vk::ImageLayout::eTransferSrcOptimal,
                 .newLayout = vk::ImageLayout::eGeneral,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image = frame->image,
+                .image = image,
                 .subresourceRange = color_range,
             },
         };
@@ -873,7 +970,30 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
         cmdbuf.endDebugUtilsLabelEXT();
     }
 
-    // Flush vulkan commands.
+    SubmitPresentImage(frame, real_frame);
+
+    // Present to swapchain.
+    {
+        std::scoped_lock submit_lock{Scheduler::submit_mutex};
+        if (!swapchain.Present()) {
+            if (window.GetWidth() != 0 && window.GetHeight() != 0) {
+                swapchain.Recreate(window.GetWidth(), window.GetHeight());
+            }
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void Presenter::SubmitPresentImage(Frame* frame, bool real_frame) {
+    // Only the terminal submission resets/signals this fence. A skipped acquisition leaves
+    // it signaled, and a generated frame can never release its real frame for early reuse.
+    if (real_frame) {
+        const auto reset_result = instance.GetDevice().resetFences(frame->present_done);
+        ASSERT_MSG(reset_result == vk::Result::eSuccess,
+                   "Unexpected error resetting present done fence: {}", vk::to_string(reset_result));
+    }
 
     // bbport: the frame's submission goes out from a recording thread (BB_ASYNC_SUBMIT); this
     // one, waiting for it on the same queue, must not get there first.
@@ -884,21 +1004,10 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
     info.AddWait(swapchain.GetImageAcquiredSemaphore());
     info.AddWait(frame->ready_semaphore, frame->ready_tick);
     info.AddSignal(swapchain.GetPresentReadySemaphore());
-    info.AddSignal(frame->present_done);
-    scheduler.Flush(info);
-
-    // Present to swapchain.
-    {
-        std::scoped_lock submit_lock{Scheduler::submit_mutex};
-        if (!swapchain.Present() && window.GetWidth() != 0 && window.GetHeight() != 0) {
-            swapchain.Recreate(window.GetWidth(), window.GetHeight());
-        }
+    if (real_frame) {
+        info.AddSignal(frame->present_done);
     }
-
-    free_frame();
-    if (!is_reusing_frame && is_game_frame) {
-        DebugState.IncFlipFrameNum();
-    }
+    present_scheduler.Flush(info);
 }
 
 Frame* Presenter::GetRenderFrame() {
@@ -940,6 +1049,7 @@ Frame* Presenter::GetRenderFrame() {
         RecreateFrame(frame, expected_frame_width, expected_frame_height);
     }
 
+    frame->prepared_at = std::chrono::steady_clock::now();
     return frame;
 }
 

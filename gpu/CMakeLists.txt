@@ -92,6 +92,7 @@ add_subdirectory(third_party/sirit EXCLUDE_FROM_ALL)
 # bbport: FSR 3.1 temporal upscaling / frame generation, native Vulkan (MIT, FireBurn/FSR-Vulkan).
 set(FFX_VK_PORTABLE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(FFX_VK_PORTABLE_BUILD_PROBE OFF CACHE BOOL "" FORCE)
+set(FFX_VK_PORTABLE_BUILD_FSR3_3_1_5_SCAFFOLD ON CACHE BOOL "" FORCE)
 add_subdirectory(third_party/fsr-vulkan EXCLUDE_FROM_ALL)
 # SacredFire (Windows, MinGW): the FidelityFX 1.1.4 host sources expect MSVC's CRT on _WIN32;
 # GNU mode keeps MinGW's MSVC-compatible names (swprintf_s) visible and the header adds _countof.
@@ -144,6 +145,7 @@ add_host_shader(ctr_fsr3_inputs.comp ctr_fsr3_inputs_comp)
 add_host_shader(ctr_fsr3_inputs.comp ctr_fsr3_inputs_d_comp DEPTH_MSAA=1)
 add_host_shader(ctr_fsr3_inputs.comp ctr_fsr3_inputs_v_comp VELOCITY_MSAA=1)
 add_host_shader(ctr_fsr3_inputs.comp ctr_fsr3_inputs_dv_comp DEPTH_MSAA=1 VELOCITY_MSAA=1)
+add_host_shader(fg_convert.comp fg_convert_comp)
 add_host_shader(buffer_multi_copy.comp buffer_multi_copy_comp)
 add_host_shader(depth_resample.frag depth_resample_frag)
 add_host_shader(depth_resample.frag depth_stencil_resample_frag HAS_STENCIL=1)
@@ -208,7 +210,8 @@ target_compile_options(bbgpu PRIVATE -ftls-model=initial-exec)
 if (NOT WIN32)
     target_link_options(bbgpu PRIVATE -Wl,--allow-shlib-undefined)
 endif()
-target_link_libraries(bbgpu PRIVATE ffx-vulkan::portable ffx-vulkan::fsr4-v07-vulkan)
+target_link_libraries(bbgpu PRIVATE ffx-vulkan::portable ffx-vulkan::fsr4-v07-vulkan
+                                  ffx-vulkan::fsr3-vk-framegeneration-3.1.6)
 target_link_libraries(bbgpu PUBLIC Vulkan::Headers fmt::fmt Boost::headers magic_enum::magic_enum
     tsl::robin_map GPUOpen::VulkanMemoryAllocator PkgConfig::XXHASH PkgConfig::SDL3 PkgConfig::FFMPEG miniz::miniz Zydis::Zydis sirit)
 if (WIN32)

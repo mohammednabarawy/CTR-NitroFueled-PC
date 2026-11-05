@@ -4,6 +4,7 @@
 #pragma once
 
 #include <deque>
+#include <chrono>
 
 #include <condition_variable>
 #include <mutex>
@@ -12,6 +13,7 @@
 #include "video_core/renderer_vulkan/host_passes/fsr_pass.h"
 #include "video_core/renderer_vulkan/host_passes/pp_pass.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
+#include "video_core/renderer_vulkan/vk_ctr_framegen.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_swapchain.h"
@@ -38,6 +40,7 @@ struct Frame {
     u64 ready_tick;
     bool is_hdr{false};
     u8 id{};
+    std::chrono::steady_clock::time_point prepared_at{};
 
 };
 
@@ -118,6 +121,11 @@ public:
 private:
     Frame* GetRenderFrame();
 
+    bool AcquirePresentImage();
+    /// Presents an already acquired swapchain image. Only the real frame signals the reuse fence.
+    bool PresentImage(Frame* frame, vk::Image image, bool real_frame);
+    void SubmitPresentImage(Frame* frame, bool real_frame);
+
     void RecreateFrame(Frame* frame, u32 width, u32 height);
 
     void SetExpectedGameSize(s32 width, s32 height);
@@ -140,6 +148,11 @@ private:
     Scheduler present_scheduler;
     Scheduler flip_scheduler;
     Scheduler native_scheduler; ///< lab: PrepareNativeFrame only
+    CtrFrameGen framegen; ///< accessed only by the swap thread, on present_scheduler
+    std::chrono::steady_clock::time_point last_generated_input{};
+    float framegen_interval_ms = 16.6f;
+    bool framegen_reset = true;
+    u64 generated_present_count = 0;
     Swapchain swapchain;
     Runtime runtime;
     std::unique_ptr<Rasterizer> rasterizer;
