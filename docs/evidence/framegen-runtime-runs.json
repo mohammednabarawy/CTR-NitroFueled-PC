@@ -74,6 +74,17 @@
       "geometry_interface_errors": 0,
       "write_after_present_errors": 0,
       "validation_layer_listed": true
+    },
+    {
+      "name": "usa-fsr3-race",
+      "log_sha256": "0f2c732b6bdad1775d0e72a1857aa7d08b14f6ef0493fa1c6e92e5035902a674",
+      "clean_exit": true,
+      "last_logged_pairs": 34200,
+      "missing_transfer_usage_errors": 0,
+      "geometry_interface_errors": 20,
+      "write_after_present_errors": 10,
+      "validation_layer_listed": true,
+      "observation": "Live race observed past 1:13; session pair count includes menus/intro; completed laps not certified"
     }
   ]
 }

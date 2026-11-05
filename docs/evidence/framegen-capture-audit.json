@@ -1,0 +1,82 @@
+{
+  "date": "2026-11-05",
+  "policy": "Retain game pixels only; no desktop, app chrome or other applications. Wider originals removed. Media stays local.",
+  "clips": [
+    {
+      "file": "eur-fsr3-fifo/title-game-only.mp4",
+      "crop": "1464:822:2:32"
+    },
+    {
+      "file": "usa-fsr3-fifo/intro-game-only.mp4",
+      "crop": "1920:1008:0:24"
+    }
+  ],
+  "removed_wider_files": 8,
+  "retained": [
+    {
+      "file": "eur-fsr3-fifo/title-game-only-review.png",
+      "sha256": "f3a4a2a28cbbc1e751f42c18e2bd2edf459f71a220232c9a82b5a2e7d40bcf18",
+      "bytes": 2110552
+    },
+    {
+      "file": "eur-fsr3-fifo/title-game-only.mp4",
+      "sha256": "f037dead388d877e1addc7620592c11923e5d4fa63982ecd23ec02e241711bdc",
+      "bytes": 1906548
+    },
+    {
+      "file": "eur-fsr3-fifo/title-game-only.png",
+      "sha256": "7b4d20e77e1002b18da5e843e89a0ec1f014f3437f5291f7b3b79bf282404d15",
+      "bytes": 681009
+    },
+    {
+      "file": "eur-fsr3-mailbox-capture/capture_frame46564-source.png",
+      "sha256": "2c40965d960ea33ce5406bdcbad2ea2663ae590031ce3d1e97a418fc5ce7bdf1",
+      "bytes": 1018800
+    },
+    {
+      "file": "eur-fsr3-mailbox-capture/capture_frame46564-thumbnail.png",
+      "sha256": "9b32d58f906d4e048b510a3dc4556bd3bcd048b4c3483be3d52ba069791a3354",
+      "bytes": 1115902
+    },
+    {
+      "file": "eur-fsr3-mailbox-capture/capture_frame46565-source.png",
+      "sha256": "1e2b5d4e2f78d0dac56f908fb1be3d5e086b97492e8c72a43022f61e058691a3",
+      "bytes": 1018524
+    },
+    {
+      "file": "eur-fsr3-mailbox-capture/capture_frame46565-thumbnail.png",
+      "sha256": "5f4445065b6c3c0e2fdb37e6663e6d866ae6ad7ff44659b5ca79c27f1279285d",
+      "bytes": 1122942
+    },
+    {
+      "file": "eur-fsr3-mailbox-capture/capture_frame46566-source.png",
+      "sha256": "33e20f8899b8decf5756e0409a6a42e7b421b9d33c49da5c993dd939ac03bc58",
+      "bytes": 1019169
+    },
+    {
+      "file": "eur-fsr3-mailbox-capture/capture_frame46566-thumbnail.png",
+      "sha256": "dc55f5d348523f8b57c8387662fcdd531c0ba142d356e03eb86143020cf145ce",
+      "bytes": 1114170
+    },
+    {
+      "file": "eur-fsr3-mailbox-capture/capture_frame46567-source.png",
+      "sha256": "09334345e2e199694bd9aaaf814990cd39fdd73f59aae27a69bb4f689b2f4dea",
+      "bytes": 1018464
+    },
+    {
+      "file": "eur-fsr3-mailbox-capture/capture_frame46567-thumbnail.png",
+      "sha256": "d3439716c5dc0f4f452d69721bb60a42d9599f391088c24fab3eeb5f7977658b",
+      "bytes": 1122920
+    },
+    {
+      "file": "usa-fsr3-fifo/intro-game-only-review.png",
+      "sha256": "139e8a3c4661f070f45b030f0fc566d9413be40857e4972ffe06ded42bb39352",
+      "bytes": 2960593
+    },
+    {
+      "file": "usa-fsr3-fifo/intro-game-only.mp4",
+      "sha256": "43d739aa91c750922bf6d98ad41e350fa4c80608e73922e718000dea4116d552",
+      "bytes": 11112591
+    }
+  ]
+}

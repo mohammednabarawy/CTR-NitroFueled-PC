@@ -13,8 +13,10 @@ machine PATH or require an installation in `C:\msys64`. Its `MSYS2_ROOT` also le
 
 Verified versions: Clang 23.1.4, CMake 4.4.5, Ninja 1.13.2, Vulkan headers/loader 1.4.363,
 VMA 3.5.0, glslang 16.6.0, SDL3 3.4.18 and FFmpeg 9.0.2. The full clean runtime/launcher build
-and all 64 aggregate targeted tests passed. See `out/pr149-final-build.log` and
-`out/pr149-final-tests.log`. `out/msys2-installed-packages.txt` records all installed packages.
+and both frame-generation tests passed for this independent branch. See
+`out/pr149-split/framegen-build.log`, `out/pr149-split/framegen-usage-fix-build.log` and
+`out/pr149-split/framegen-tests.log` in the local validation workspace.
+`out/msys2-installed-packages.txt` records all installed packages.
 
 ## Fresh build
 
