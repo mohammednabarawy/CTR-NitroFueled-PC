@@ -7775,8 +7775,18 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     int cmd_argc = 0;
     LPWSTR* cmd_argv = CommandLineToArgvW(GetCommandLineW(), &cmd_argc);
     bool direct_launch = false, updated = false;
+    int startup_tab = -1;
     if (cmd_argv) {
         for (int i = 1; i < cmd_argc; ++i) {
+            if (_wcsicmp(cmd_argv[i], L"--tab") == 0 && i + 1 < cmd_argc) {
+                const wchar_t* tabs[] = {L"play", L"settings", L"online", L"gamepad", L"keyboard",
+                                         L"mods", L"saves", L"dlc", L"achievements", L"tools"};
+                ++i;
+                for (int tab = 0; tab < 10; ++tab) {
+                    if (_wcsicmp(cmd_argv[i], tabs[tab]) == 0) startup_tab = tab;
+                }
+                continue;
+            }
             if (_wcsicmp(cmd_argv[i], L"--updated") == 0) updated = true;  // started by an update (PollUpdate)
             if (_wcsicmp(cmd_argv[i], L"--launch") == 0 || _wcsicmp(cmd_argv[i], L"--play") == 0 ||
                 _wcsicmp(cmd_argv[i], L"-launch") == 0 || _wcsicmp(cmd_argv[i], L"-play") == 0 ||
@@ -7789,6 +7799,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int) {
     }
 
     LoadState();
+    if (startup_tab >= 0) g_app.active_page = startup_tab;
     MigrateOldLauncher();
     if (!direct_launch) {
         CleanupUpdate();
