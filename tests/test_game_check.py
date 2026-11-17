@@ -150,6 +150,7 @@ class GameCheckTests(unittest.TestCase):
 
     def test_recognized_truncated_archive_and_out_of_bounds_table_are_damaged(self):
         game = self.game('CUSA14876', '01.21')
+        self.archive(game, 'loosefiles.pak', b'localizationData.igz\0')
         self.archive(game, 'bounds.pak', b'name\0')
         path = game / 'archives/bounds.pak'
         header = bytearray(path.read_bytes())
@@ -161,12 +162,14 @@ class GameCheckTests(unittest.TestCase):
 
     def test_empty_table_and_unrelated_files_are_not_zero_table_corruption(self):
         game = self.game('CUSA13795', '01.21')
+        self.archive(game, 'loosefiles.pak', b'localizationData.igz\0')
         self.archive(game, 'empty.pak', b'')
         (game / 'archives/other.pak').write_bytes(b'unrelated')
         self.assertEqual(game_check.damaged_archives(game), [])
 
     def test_nonzero_later_in_large_name_table_is_not_damaged(self):
         game = self.game('CUSA13795', '01.21')
+        self.archive(game, 'loosefiles.pak', b'localizationData.igz\0')
         self.archive(game, 'large.pak', b'\0' * (1024 * 1024) + b'name\0')
         self.assertEqual(game_check.damaged_archives(game), [])
 

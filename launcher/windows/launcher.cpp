@@ -4254,6 +4254,18 @@ void SettingsTab() {
                "Fewer hitches when an effect is first seen; an effect may show up a frame late."));
 
     ImGui::SeparatorText(T("Pantalla", "Display"));
+    if (a.game.Get("renderer") != "d3d11") {
+        static constexpr Choice kFrameGen[] = {{"Desactivada", "Off", "off"},
+                                              {"AMD FSR 3.1", "AMD FSR 3.1", "fsr3"}};
+        const std::string mode = a.game.Get("framegen", "off");
+        const char* current = mode == "fsr3" || mode == "fsr" || mode == "on" || mode == "1"
+                                  ? "fsr3" : "off";
+        if (GameChoiceCombo(T("Generación de fotogramas (experimental)",
+                              "Frame generation (experimental)"),
+                            "framegen", kFrameGen, current, 16.0f)) {
+            SaveGameIni();
+        }
+    }
     const std::string temporal = GameTemporal();
     const bool dlss_sized = temporal == "dlss" && a.game.Get("dlss_quality", "auto") != "auto";
     ImGui::BeginDisabled(dlss_sized);

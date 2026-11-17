@@ -1646,6 +1646,17 @@ void Menu() {
     const bool picture_tab = ImGui::BeginTabItem(BbSettings::MenuText("Picture", "Изображение"));
     if (picture_tab) {
     MenuSection(BbSettings::MenuText("Resolution and upscaling", "Разрешение и апскейл"));
+    const char* d3d11 = std::getenv("BB_D3D11");
+    if (!d3d11 || std::string_view(d3d11) != "1") {
+        bool enabled = s.framegen.load() == BbSettings::FrameGenFsr3;
+        const bool changed = ImGui::Checkbox(
+            BbSettings::MenuText("FSR 3.1 frame generation (experimental)",
+                                 "Генерация кадров FSR 3.1 (экспериментально)"),
+            &enabled);
+        Store(s.framegen, int(enabled ? BbSettings::FrameGenFsr3 : BbSettings::FrameGenOff), changed);
+        Hint(BbSettings::MenuText("Applies when the settings menu closes.",
+                                  "Вступает в силу после закрытия меню настроек."));
+    }
     // SacredFire: the scene resolution (render_res) replaces the 1080p Pro patch's checkbox; a
     // DLSS quality mode sets it instead (scripts/patches.py render_plan).
     const bool dlss_sized = s.temporal == BbSettings::TemporalDlss && s.dlss_quality > 0;

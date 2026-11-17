@@ -7,10 +7,14 @@ Local GPU captures show alternating generated and real swapchain blits, and visi
 output has been recorded. Physical scanout, the full runtime matrix and remaining validation
 errors are still open; see the validation report below.
 
-`bbport.ini` `framegen=off|fsr3` (`fsr`, `on` and `1` from test builds also mean `fsr3`;
-`BB_FRAMEGEN` for scripts). The file/environment setting is loaded at startup and defaults to
-off. This revision has no launcher or in-game frame-generation control. The presenter handles
-changes to the settings atomic, but editing the file while playing does not reload it.
+Frame generation defaults to Off. On Windows, open the launcher's Settings tab and choose
+**AMD FSR 3.1** under Display. The GTK launcher has an experimental frame-generation switch.
+In a Vulkan session, use the **FSR 3.1 frame generation (experimental)** checkbox in the
+in-game Picture tab and close the settings menu to apply and save it. DirectX 11 uses its own
+presentation path and hides the Windows frame-generation controls.
+
+For scripts, set `BB_FRAMEGEN=off|fsr3` or put `framegen=off|fsr3` in `bbport.ini`. The startup
+environment takes precedence over the file. The aliases `fsr`, `on` and `1` also select FSR.
 
 ## What it does
 
@@ -112,8 +116,8 @@ making doubled-FPS or readiness claims.
   It does not execute `PresentImage`'s Vulkan commands or the FSR shaders.
 - `tests/test_framegen_build.py` uses the actual host-shader CMake function and registration to
   build `fg_convert_comp.h` in a new directory. It does not replace a full application build.
-- See [FRAMEGEN_VALIDATION.md](../FRAMEGEN_VALIDATION.md) for local results, findings and
-  the remaining runtime acceptance checks.
+- See [OCTR v0.8.8 upgrade validation](../OCTR_V088_UPGRADE.md) for this version's runtime
+  results and [FRAMEGEN_VALIDATION.md](../FRAMEGEN_VALIDATION.md) for the November 5 build.
 
 ## Known limits
 

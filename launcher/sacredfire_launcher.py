@@ -1397,6 +1397,10 @@ class LauncherWindow(Adw.ApplicationWindow):
             UPSCALERS, temporal)
         self.upscaler_row.connect("notify::selected", lambda *_: self.update_upscaler())
         screen.add(self.upscaler_row)
+        self.framegen_row = Adw.SwitchRow(
+            title=tr("FSR 3.1 frame generation (experimental)"),
+            active=self.ini.get("framegen", "off") in ("fsr3", "fsr", "on", "1"))
+        screen.add(self.framegen_row)
         sharpness = Gtk.Adjustment(lower=0.0, upper=1.0, step_increment=0.05, page_increment=0.1)
         try:
             sharpness.set_value(float(self.ini.get("fsr3_sharpness", "0.30")))
@@ -1712,6 +1716,7 @@ class LauncherWindow(Adw.ApplicationWindow):
         self.ini["msaa"] = "1" if self.msaa_row.get_active() else "0"
         self.ini["borderless"] = "1" if self.borderless_row.get_active() else "0"
         self.ini["temporal"] = combo_value(self.upscaler_row)
+        self.ini["framegen"] = "fsr3" if self.framegen_row.get_active() else "off"
         self.ini["renderer"] = combo_value(self.renderer_row)
         self.ini["fsr1"] = self.ini["fsr3"] = None  # older keys: temporal decides
         self.ini["fsr3_sharpness"] = f"{self.sharpness_row.get_value():.2f}"
@@ -1753,6 +1758,7 @@ class LauncherWindow(Adw.ApplicationWindow):
         temporal = self.ini.get("temporal", "off")
         if temporal in self.upscaler_row.values:
             self.upscaler_row.set_selected(self.upscaler_row.values.index(temporal))
+        self.framegen_row.set_active(self.ini.get("framegen", "off") in ("fsr3", "fsr", "on", "1"))
         try:
             self.volume_scale.set_value(max(0, min(200, int(self.ini.get("volume", VOLUME_DEFAULT)))))
         except ValueError:

@@ -1,5 +1,9 @@
 # Arabic localization coverage
 
+The OCTR v0.8.8 integration covers **494 GTK keys** and **639 Windows translation-table
+entries**, including the Windows launcher's frame-generation setting. Visual RTL checks
+remain separate from translation coverage.
+
 The independent `codex/pr149-arabic` branch based on upstream main has all **449 GTK keys**
 and **531 Windows translation-table entries**. The older combined remediation branch has
 440 GTK keys because its English launcher predates the nine newer upstream keys.
