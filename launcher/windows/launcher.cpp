@@ -894,11 +894,16 @@ fs::path GameRoot(const fs::path& dir) {
 std::vector<std::pair<fs::path, fs::path>> LayoutFiles(const fs::path& dir, std::error_code& ec) {
     std::vector<std::pair<fs::path, fs::path>> files;
     const Layout layout = FindLayout(dir);
-    if (!layout) return files;
+    if (!layout) {
+        ec = std::make_error_code(std::errc::invalid_argument);
+        return files;
+    }
     auto add = [&](const fs::path& from, const fs::path& prefix) {
         for (fs::recursive_directory_iterator it(from, ec), end; !ec && it != end; it.increment(ec)) {
-            std::error_code e2;
-            if (it->is_regular_file(e2)) files.emplace_back(it->path(), prefix / fs::relative(it->path(), from, e2));
+            if (it->is_regular_file(ec)) {
+                files.emplace_back(it->path(), prefix / it->path().lexically_relative(from));
+            }
+            if (ec) break;
         }
     };
     add(layout.files, {});
@@ -2384,7 +2389,9 @@ fs::path MergeTarget(const fs::path& near_dir) {
     App& a = g_app;
     const fs::path parent = near_dir.parent_path();
     fs::path target = parent / (GameTitle() + L"-1.21");
-    if (target == near_dir || target == a.base_dir || target == a.update_dir || target == a.game_dir) {
+    std::error_code ec;
+    if (target == near_dir || target == a.base_dir || target == a.update_dir || target == a.game_dir ||
+        fs::exists(target, ec)) {
         target = parent / (GameTitle() + L"-1.21-merged");
     }
     return target;
@@ -2416,21 +2423,52 @@ void StartMerge(std::vector<fs::path> sources) {
         }
         std::string error;
         if (ec) error = "Cannot read the game folders: " + ec.message();
+        fs::path stage = target;
+        stage += L".staging-" + std::to_wstring(GetCurrentProcessId()) + L"-" +
+                 std::to_wstring(GetTickCount64());
+        bool staging_created = false;
+        if (error.empty()) {
+            if (fs::exists(target, ec)) {
+                error = "Merged folder already exists: " + PathText(target);
+            } else if (ec) {
+                error = "Cannot check " + PathText(target) + ": " + ec.message();
+            } else {
+                staging_created = fs::create_directory(stage, ec);
+                if (!staging_created) {
+                    error = "Cannot create staging folder " + PathText(stage);
+                    if (ec) error += ": " + ec.message();
+                }
+            }
+        }
         app.merge_total = files.size();
         size_t copied = 0;
         for (size_t i = 0; error.empty() && i < files.size(); ++i) {
-            const fs::path dest = target / files[i].second;
+            const fs::path dest = stage / files[i].second;
             std::error_code e2;
             fs::create_directories(dest.parent_path(), e2);
-            if (fs::exists(dest, e2)) fs::remove(dest, e2);
+            if (!e2) fs::remove(dest, e2);  // Update files supersede the corresponding base links.
+            if (e2) {
+                error = "Cannot prepare " + PathText(dest) + ": " + e2.message();
+                break;
+            }
             if (!CreateHardLinkW(dest.c_str(), files[i].first.c_str(), nullptr)) {
-                if (!CopyFileW(files[i].first.c_str(), dest.c_str(), FALSE)) {
+                if (!CopyFileW(files[i].first.c_str(), dest.c_str(), TRUE)) {
                     error = "Cannot create " + PathText(dest) + " (error " + std::to_string(GetLastError()) + ")";
                     break;
                 }
                 ++copied;
             }
             app.merge_done = i + 1;
+        }
+        // Publish the completed sibling directory without replacing any existing destination.
+        if (error.empty() && !MoveFileExW(stage.c_str(), target.c_str(), 0)) {
+            error = "Cannot publish " + PathText(target) + " (error " +
+                    std::to_string(GetLastError()) + ")";
+        }
+        if (!error.empty() && staging_created) {
+            std::error_code cleanup_error;
+            fs::remove_all(stage, cleanup_error);
+            if (cleanup_error) error += "; staging cleanup: " + cleanup_error.message();
         }
         {
             std::scoped_lock lock{app.mutex};

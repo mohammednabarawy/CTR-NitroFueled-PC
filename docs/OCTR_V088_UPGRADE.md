@@ -7,7 +7,9 @@ portrait fixes.
 
 The integration carries over Arabic and RTL launcher support, themes and the `--tab`
 option, strict patch `Expected` checks, damaged archive detection, staged update merges,
-and experimental Vulkan FSR 3.1.6 frame generation. The live frame-generation control
+and experimental Vulkan FSR 3.1.6 frame generation. The Windows launcher now stages its
+own update merges in a sibling directory before publishing the completed game folder.
+The live frame-generation control
 follows the approach documented by the
 [GetLostIn fork](https://github.com/GetLostIn/CTR-NitroFueled-PC/blob/v0.4/docs/sacredfire/16-framegen.md).
 This build uses color-only optical flow. See [frame generation](sacredfire/16-framegen.md)
@@ -25,6 +27,10 @@ for the available controls and supported formats.
 - USA 1.21 (`CUSA13795`) ran the DirectX 11 renderer on the same machine, reported at
   least 3,600 pictures presented and exited with code 0. This was a startup and
   presentation smoke test. The tests used separate profiles and caches.
+- The portable runtime also booted the USA dump in Vulkan with frame generation off
+  and exited with code 0. The graphics-menu archive test passed on both dumps.
+- A Windows harness ran the launcher's merge worker against planning and copy failures,
+  successful retries, update precedence, hard links and existing destination preservation.
 
 Queued frames measure submissions. A fresh GPU order capture, visible pacing and artifact
 checks, and sustained race tests are still needed for this build. The
